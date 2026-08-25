@@ -1,0 +1,24 @@
+# Go build artifacts
+/bin/
+*.exe
+*.test
+*.out
+*.prof
+/coverage/
+
+# Local application data (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# Wails build output (later phases)
+/build/bin/
+
+# OS noise
+Thumbs.db
+.DS_Store
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
