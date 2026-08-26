@@ -39,7 +39,8 @@
 .identity__versions li {
   border: var(--border-w) solid var(--border-faint);
   background: var(--bg-inset);
+  border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-dim);
 }

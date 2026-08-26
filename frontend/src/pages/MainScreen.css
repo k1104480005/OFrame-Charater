@@ -9,8 +9,9 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) var(--space-4);
-  border-bottom: var(--border-w) solid var(--border);
+  border-bottom: none;
   background: var(--bg-panel);
+  box-shadow: 0 3px 0 0 var(--border-faint);
 }
 
 .main__title {

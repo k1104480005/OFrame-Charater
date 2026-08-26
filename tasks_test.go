@@ -51,7 +51,7 @@ func TestTaskDrawerLifecycle(t *testing.T) {
 	app, _ = newTestApp(t, fakeClient(func(r *http.Request) (*http.Response, error) {
 		return jsonResp(500, map[string]any{"error": map[string]any{"message": "boom"}}), nil
 	}))
-	if _, err := app.PackageCreate("Hero"); err != nil {
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.IdentitySetCanvas(32, 32); err != nil {
@@ -115,7 +115,7 @@ func TestTaskResumeAllBinding(t *testing.T) {
 	app, _ := newTestApp(t, fakeClient(func(r *http.Request) (*http.Response, error) {
 		return filmstripPNGResp(t), nil
 	}))
-	if _, err := app.PackageCreate("Hero"); err != nil {
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.IdentitySetCanvas(32, 32); err != nil {

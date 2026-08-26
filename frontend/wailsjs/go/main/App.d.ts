@@ -41,7 +41,11 @@ export function IdentityGet():Promise<main.IdentityView>;
 
 export function IdentityImportMaterial(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.MaterialView>;
 
+export function IdentityRename(arg1:string,arg2:string):Promise<void>;
+
 export function IdentitySetCanvas(arg1:number,arg2:number):Promise<void>;
+
+export function IdentitySetCategory(arg1:string,arg2:string):Promise<void>;
 
 export function IdentitySetDescription(arg1:string):Promise<void>;
 
@@ -61,11 +65,15 @@ export function OperationLog():Promise<Array<main.OperationLogEntryView>>;
 
 export function PackageClose():Promise<void>;
 
-export function PackageCreate(arg1:string):Promise<main.PackageSummary>;
+export function PackageCreate(arg1:string,arg2:string):Promise<main.PackageSummary>;
+
+export function PackageDelete(arg1:string):Promise<void>;
 
 export function PackageOpen(arg1:string):Promise<main.PackageSummary>;
 
 export function PickMaterialFile(arg1:string):Promise<string>;
+
+export function PickWorkspaceDir(arg1:string):Promise<string>;
 
 export function PresetCatalog():Promise<main.PresetCatalogView>;
 
@@ -96,6 +104,8 @@ export function TaskRetry(arg1:string):Promise<void>;
 export function WorkspaceEnsureDefault():Promise<main.WorkspaceInfo>;
 
 export function WorkspaceList():Promise<Array<main.PackageSummary>>;
+
+export function WorkspaceMigrate(arg1:string,arg2:boolean):Promise<main.WorkspaceInfo>;
 
 export function WorkspaceOpen(arg1:string):Promise<main.WorkspaceInfo>;
 

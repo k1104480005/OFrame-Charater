@@ -1,0 +1,49 @@
+/* 动森风格确认弹窗：遮罩淡入 + 面板弹入。 */
+
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: animal-fade 0.2s ease;
+}
+
+.confirm-modal {
+  width: 420px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-modal);
+  animation: animal-pop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.confirm-modal__title {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--ink);
+}
+
+.confirm-modal__message {
+  color: var(--ink-dim);
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.confirm-modal__actions {
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+
+@keyframes animal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes animal-pop {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}

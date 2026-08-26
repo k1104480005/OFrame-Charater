@@ -62,12 +62,15 @@ func TestPackageLifecycle(t *testing.T) {
 	}
 
 	// Create → opens automatically.
-	sum, err := app.PackageCreate("Hero")
+	sum, err := app.PackageCreate("Hero", "主角")
 	if err != nil {
 		t.Fatalf("PackageCreate: %v", err)
 	}
 	if sum.Name != "Hero" || sum.Path == "" || sum.CurrentVersion == "" {
 		t.Fatalf("created summary incomplete: %+v", sum)
+	}
+	if sum.Category != "主角" {
+		t.Fatalf("expected category %q, got %q", "主角", sum.Category)
 	}
 	if !filepath.IsAbs(sum.Path) {
 		t.Fatalf("package path not absolute: %s", sum.Path)
@@ -119,7 +122,7 @@ func TestPackageOpenErrors(t *testing.T) {
 	}
 
 	// Empty name / path rejected by bindings.
-	if _, err := app.PackageCreate("  "); err == nil {
+	if _, err := app.PackageCreate("  ", ""); err == nil {
 		t.Fatal("expected error for blank package name")
 	}
 	if _, err := app.PackageOpen(""); err == nil {
@@ -129,7 +132,7 @@ func TestPackageOpenErrors(t *testing.T) {
 
 func TestIdentityBindings(t *testing.T) {
 	app, _ := newTestAppSimple(t)
-	if _, err := app.PackageCreate("Hero"); err != nil {
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
 		t.Fatal(err)
 	}
 

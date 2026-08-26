@@ -63,6 +63,7 @@ const InitialVersionID = "v1"
 type IdentityMeta struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
+	Category        string    `json:"category,omitempty"`        // 主页分类管理（空=未分类）
 	Description     string    `json:"description,omitempty"`     // 文字描述入口
 	EntryKind       string    `json:"entryKind,omitempty"`       // text | reference_image | sprite
 	EntryMaterialID string    `json:"entryMaterialId,omitempty"` // 素材区引用（参考图/精灵入口）

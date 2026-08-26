@@ -11,8 +11,10 @@ import {
   currentPackage,
   ensureDefaultWorkspace,
   listPackages,
+  migrateWorkspace as migrateWorkspaceBinding,
   onSessionChanged,
   openPackage,
+  openWorkspace as openWorkspaceBinding,
 } from "../api/client";
 
 export interface SessionState {
@@ -26,11 +28,15 @@ export interface SessionState {
   /** open an existing package (launch page → workbench) */
   open: (path: string) => Promise<void>;
   /** create and open a new package */
-  create: (name: string) => Promise<void>;
+  create: (name: string, category?: string) => Promise<void>;
   /** close the package and return to the launch page */
   close: () => Promise<void>;
   refreshList: () => Promise<void>;
   setError: (msg: string | null) => void;
+  /** switch the active workspace directory (opens & persists the choice) */
+  switchWorkspace: (path: string) => Promise<WorkspaceInfo>;
+  /** migrate current workspace packages to a new location (copy or move) */
+  migrateWorkspace: (dst: string, move: boolean) => Promise<WorkspaceInfo>;
 }
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -87,8 +93,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setError(null);
   }, []);
 
-  const create = useCallback(async (name: string) => {
-    const summary = await createPackage(name);
+  const create = useCallback(async (name: string, category = "") => {
+    const summary = await createPackage(name, category);
     setPkg(summary);
     setError(null);
   }, []);
@@ -99,9 +105,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await refreshList();
   }, [refreshList]);
 
+  // Switch the active workspace: open it on the Go side (which persists the
+  // choice), mirror it into session state, and re-list its packages.
+  const switchWorkspace = useCallback(async (path: string) => {
+    const info = await openWorkspaceBinding(path);
+    setWorkspace(info);
+    await refreshList();
+    setError(null);
+    return info;
+  }, [refreshList]);
+
+  // Migrate the current workspace's packages to a new location, switch to it,
+  // and drop any open package (its directory may have moved).
+  const migrateWorkspace = useCallback(async (dst: string, move: boolean) => {
+    const info = await migrateWorkspaceBinding(dst, move);
+    setWorkspace(info);
+    setPkg(null);
+    await refreshList();
+    setError(null);
+    return info;
+  }, [refreshList]);
+
   const value = useMemo<SessionState>(
-    () => ({ pkg, workspace, packages, loading, error, open, create, close, refreshList, setError }),
-    [pkg, workspace, packages, loading, error, open, create, close, refreshList],
+    () => ({ pkg, workspace, packages, loading, error, open, create, close, refreshList, setError, switchWorkspace, migrateWorkspace }),
+    [pkg, workspace, packages, loading, error, open, create, close, refreshList, switchWorkspace, migrateWorkspace],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

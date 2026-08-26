@@ -143,7 +143,7 @@ export function MotionPage() {
             <option value="8">8 方向</option>
           </select>
           <label className="faint" htmlFor="motion-mirror">
-            <input id="motion-mirror" type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} /> 自动镜像
+            <input id="motion-mirror" type="checkbox" className="pixel-switch" checked={mirror} onChange={(e) => setMirror(e.target.checked)} /> 自动镜像
           </label>
           <button className="pixel-btn pixel-btn--primary" disabled={busy === "create"} onClick={() => void handleCreate()}>
             {busy === "create" ? "创建中…" : "创建动作"}

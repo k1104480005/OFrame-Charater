@@ -30,3 +30,6 @@ Thumbs.db
 
 # WorkBuddy workspace data (memory/logs, not part of the product)
 .workbuddy/
+
+# local npm checksum artifact
+frontend/package.json.md5

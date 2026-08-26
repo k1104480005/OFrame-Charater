@@ -2,7 +2,7 @@
   display: flex;
   align-items: stretch;
   gap: var(--space-1);
-  border-bottom: var(--border-w) solid var(--border);
+  border-bottom: var(--border-w) solid var(--border-faint);
   padding-bottom: var(--space-1);
   margin-bottom: var(--space-3);
 }
@@ -10,30 +10,36 @@
 .pixel-tab {
   background: var(--bg-panel);
   color: var(--ink-dim);
-  border: var(--border-w) solid var(--border);
-  border-bottom: none;
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-pill);
   padding: calc(var(--space-1) - 2px) var(--space-2);
   font-size: 14px;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  transition: var(--transition);
 }
 
 .pixel-tab:hover {
   color: var(--ink);
+  background: var(--bg-elevated);
+  transform: translateY(-1px);
 }
 
 .pixel-tab--active {
-  background: var(--ink);
-  color: var(--bg);
-  box-shadow: none;
+  background: var(--primary);
+  border-color: var(--primary-active);
+  color: var(--on-primary);
+  box-shadow: 0 3px 0 0 var(--primary-active);
 }
 
 .pixel-tab__accent {
-  font-family: var(--font-pixel);
-  font-size: 9px;
-  letter-spacing: 1px;
-  opacity: 0.85;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
 }
 
 .pixel-tabs__trailing {

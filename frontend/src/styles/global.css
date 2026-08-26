@@ -1,4 +1,4 @@
-/* Global base styles + pixel-component primitives. */
+/* Global base styles + rounded cozy component primitives (动森风味). */
 
 * {
   box-sizing: border-box;
@@ -13,11 +13,17 @@ body,
 }
 
 body {
-  background: var(--bg);
-  color: var(--ink);
+  background-color: var(--bg);
+  /* 动森波点纹理（仅全局背景，极浅不干扰阅读） */
+  background-image:
+    radial-gradient(circle, var(--pattern-dot-a) 1.5px, transparent 1.5px),
+    radial-gradient(circle, var(--pattern-dot-b) 1px, transparent 1px);
+  background-size: 28px 28px, 14px 14px;
+  background-position: 0 0, 7px 7px;
+  color: var(--ink-dim);
   font-family: var(--font-body);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -31,43 +37,59 @@ textarea,
 select {
   font-family: inherit;
   font-size: 14px;
+  font-weight: 500;
   color: var(--ink);
   background: var(--bg-inset);
-  border: var(--border-w) solid var(--border);
+  border: var(--border-w-input) solid var(--border-faint);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-input);
   padding: calc(var(--space-1) - 2px) var(--space-2);
   outline: none;
+  transition: var(--transition);
 }
 
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--focus);
+  box-shadow: 0 3px 0 0 var(--focus-active);
+}
+
 button:focus-visible {
-  outline: var(--border-w) solid var(--border);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--shadow-btn), 0 0 0 3px var(--focus);
 }
 
 textarea {
   resize: vertical;
   min-height: 96px;
+  border-radius: var(--radius-md);
 }
 
 ::placeholder {
   color: var(--ink-faint);
+  font-weight: 400;
+}
+
+::selection {
+  background: var(--selection);
 }
 
 h1,
 h2,
 h3,
 h4 {
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.3;
+  color: var(--ink);
 }
 
-/* --- pixel panel (pixel border + hard shadow) --- */
+/* --- cozy card panel (rounded + warm soft shadow) --- */
 .pixel-panel {
   background: var(--bg-panel);
   border: var(--border-w) solid var(--border);
-  box-shadow: var(--border-shadow-offset) var(--border-shadow-offset) 0 0 var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   padding: var(--space-3);
 }
 
@@ -77,10 +99,12 @@ h4 {
 
 .pixel-panel--inset {
   background: var(--bg-inset);
-  box-shadow: inset 0 0 0 var(--border-w) var(--border);
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-md);
+  box-shadow: none;
 }
 
-/* --- pixel button --- */
+/* --- cozy button (pill + 3D press) --- */
 .pixel-btn {
   display: inline-flex;
   align-items: center;
@@ -88,50 +112,79 @@ h4 {
   background: var(--bg-panel);
   color: var(--ink);
   border: var(--border-w) solid var(--border);
-  box-shadow: 3px 3px 0 0 var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-btn);
   padding: calc(var(--space-1) - 2px) var(--space-2);
   font-size: 14px;
+  font-weight: 700;
   user-select: none;
-  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  transition: var(--transition);
 }
 
 .pixel-btn:hover {
   background: var(--bg-elevated);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-btn-hover);
 }
 
 .pixel-btn:active {
-  transform: translate(3px, 3px);
-  box-shadow: 0 0 0 0 var(--border);
+  transform: translateY(2px);
+  box-shadow: var(--shadow-btn-active);
 }
 
 .pixel-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 3px 3px 0 0 var(--border);
+  box-shadow: var(--shadow-btn);
 }
 
+/* 主操作：薄荷绿底 + 深青绿文字 */
 .pixel-btn--primary {
-  background: var(--ink);
-  color: var(--bg);
+  background: var(--primary);
+  border-color: var(--primary-active);
+  color: var(--on-primary);
 }
 
 .pixel-btn--primary:hover {
-  background: var(--ink-dim);
+  background: var(--primary-hover);
 }
 
-/* status-tinted buttons: color carries status meaning only */
+.pixel-btn--primary:active {
+  background: var(--primary-active);
+}
+
+/* 状态色按钮：颜色只表状态 */
 .pixel-btn--ok {
   border-color: var(--status-ok);
-  box-shadow: 3px 3px 0 0 var(--status-ok);
+  box-shadow: var(--shadow-btn-tint);
 }
 
+/* 危险/删除按钮：动森红底 + 深红底部阴影（危险操作专用） */
 .pixel-btn--warn {
+  background: var(--status-warn);
   border-color: var(--status-warn);
-  box-shadow: 3px 3px 0 0 var(--status-warn);
+  color: #fffdf7;
+  box-shadow: 0 5px 0 0 var(--status-warn-dim);
 }
 
-/* --- status text/badges (status colors used only for status) --- */
+.pixel-btn--warn:hover {
+  background: #ec7a7a;
+  border-color: #ec7a7a;
+  box-shadow: 0 6px 0 0 var(--status-warn-dim);
+}
+
+.pixel-btn--warn:active {
+  background: var(--status-warn-dim);
+  border-color: var(--status-warn-dim);
+  box-shadow: 0 1px 0 0 var(--status-warn-dim);
+}
+
+.pixel-btn--warn:disabled {
+  box-shadow: 0 5px 0 0 var(--status-warn-dim);
+}
+
+/* --- status text/badges --- */
 .status-ok {
   color: var(--status-ok);
 }
@@ -144,43 +197,149 @@ h4 {
   color: var(--ink-faint);
 }
 
-/* --- pixel inputs (pixel borders, no rounded corners) --- */
+.status-badge {
+  display: inline-block;
+  padding: 1px var(--space-1);
+  border: var(--border-w) solid currentColor;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* --- cozy inputs (pill; focus 变黄) --- */
 .pixel-input,
 .pixel-input--mono {
-  border: var(--border-w) solid var(--border);
-  background: var(--bg);
-  color: var(--ink);
-  padding: calc(var(--space-1) - 2px) var(--space-1);
+  border: var(--border-w-input) solid var(--border-faint);
+  background: var(--bg-inset);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-input);
+  padding: calc(var(--space-1) - 2px) var(--space-2);
   font-size: 14px;
+  font-weight: 500;
   outline: none;
-  box-shadow: 2px 2px 0 0 var(--border);
+  transition: var(--transition);
 }
 
 .pixel-input:focus,
 .pixel-input--mono:focus {
-  border-color: var(--ink);
+  border-color: var(--focus);
+  box-shadow: 0 3px 0 0 var(--focus-active);
 }
 
 .pixel-input--mono {
-  font-family: var(--font-pixel);
+  font-family: var(--font-body);
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
-.status-badge {
-  display: inline-block;
-  padding: 0 var(--space-1);
-  border: var(--border-w) solid currentColor;
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  line-height: 1.6;
-  text-transform: uppercase;
+/* --- 动森圆角复选框（不继承输入框的药丸样式） --- */
+input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 0 0 var(--shadow-color-input);
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition);
 }
 
-/* --- pixel separators (点阵描边, no rounded corners) --- */
+input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary-active);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+input[type="checkbox"]:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* --- 动森 Switch（药丸轨道 + 滑动圆钮；用于「自动镜像」等开关） --- */
+input[type="checkbox"].pixel-switch {
+  appearance: none;
+  width: 52px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border: 2.5px solid var(--border-faint);
+  border-radius: var(--radius-pill);
+  background: var(--shadow-color-input);
+  box-shadow: inset 0 2px 4px rgba(114, 93, 66, 0.18);
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition);
+}
+
+input[type="checkbox"].pixel-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  box-shadow: 0 2px 0 0 var(--shadow-color-btn);
+  transition: var(--transition);
+}
+
+input[type="checkbox"].pixel-switch:checked {
+  background: var(--status-ok);
+  border-color: var(--status-ok-dim);
+}
+
+input[type="checkbox"].pixel-switch:checked::after {
+  left: 25px;
+  background: #fff;
+  border-color: var(--status-ok-dim);
+}
+
+input[type="checkbox"].pixel-switch:checked::before {
+  content: none;
+}
+
+input[type="checkbox"].pixel-switch:focus-visible {
+  outline: none;
+  box-shadow: inset 0 2px 4px rgba(114, 93, 66, 0.18), 0 0 0 3px var(--focus);
+}
+
+/* --- gen-plan 列表（生成确认/预览信息块） --- */
+.gen-plan__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+}
+
+/* --- soft divider (手绘虚线感) --- */
 .pixel-rule {
   height: 0;
   border: none;
-  border-top: var(--border-w) solid var(--border);
+  border-top: var(--border-w) dashed var(--border-faint);
 }
 
 .pixel-rule--faint {
@@ -198,20 +357,19 @@ h4 {
 
 .field-label {
   color: var(--ink-dim);
+  font-weight: 600;
   padding-top: calc(var(--space-1) - 2px);
 }
 
-/* --- mono data / numeric readouts --- */
+/* --- data readouts（原像素 mono → 圆润字重 600，可读性提升） --- */
 .mono {
-  font-family: var(--font-pixel);
-  font-size: 10px;
-  letter-spacing: 0.5px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  font-weight: 600;
 }
 
-/* --- 洋红仅用于抠图技术背景 ---
- * Only matting-related technical views (background-removal preview, alpha
- * check) use magenta. The checkerboard below is the ONLY magenta usage in the
- * interface. */
+/* --- 洋红仅用于抠图技术背景 --- */
 .matting-bg {
   background-image: conic-gradient(
     var(--magenta) 0 25%,
@@ -240,6 +398,7 @@ h4 {
   display: flex;
   gap: var(--space-2);
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .col {
@@ -263,6 +422,7 @@ h4 {
 
 .error-text {
   color: var(--status-warn);
+  font-weight: 600;
 }
 
 .empty-state {
@@ -270,9 +430,11 @@ h4 {
   text-align: center;
   color: var(--ink-dim);
   border: var(--border-w) dashed var(--border-faint);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
 }
 
-/* scrollbars keep the pixel aesthetic */
+/* scrollbars keep the cozy rounded aesthetic */
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
@@ -283,6 +445,7 @@ h4 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border: 2px solid var(--bg-panel);
+  background: var(--border-faint);
+  border-radius: 6px;
+  border: 3px solid var(--bg-panel);
 }

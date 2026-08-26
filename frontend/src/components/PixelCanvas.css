@@ -12,6 +12,8 @@
 .pixel-canvas__host {
   border: var(--border-w) solid var(--border);
   background: var(--bg-inset);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   image-rendering: pixelated;
   line-height: 0;
 }

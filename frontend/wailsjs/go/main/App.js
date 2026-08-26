@@ -78,8 +78,16 @@ export function IdentityImportMaterial(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['IdentityImportMaterial'](arg1, arg2, arg3, arg4);
 }
 
+export function IdentityRename(arg1, arg2) {
+  return window['go']['main']['App']['IdentityRename'](arg1, arg2);
+}
+
 export function IdentitySetCanvas(arg1, arg2) {
   return window['go']['main']['App']['IdentitySetCanvas'](arg1, arg2);
+}
+
+export function IdentitySetCategory(arg1, arg2) {
+  return window['go']['main']['App']['IdentitySetCategory'](arg1, arg2);
 }
 
 export function IdentitySetDescription(arg1) {
@@ -118,8 +126,12 @@ export function PackageClose() {
   return window['go']['main']['App']['PackageClose']();
 }
 
-export function PackageCreate(arg1) {
-  return window['go']['main']['App']['PackageCreate'](arg1);
+export function PackageCreate(arg1, arg2) {
+  return window['go']['main']['App']['PackageCreate'](arg1, arg2);
+}
+
+export function PackageDelete(arg1) {
+  return window['go']['main']['App']['PackageDelete'](arg1);
 }
 
 export function PackageOpen(arg1) {
@@ -128,6 +140,10 @@ export function PackageOpen(arg1) {
 
 export function PickMaterialFile(arg1) {
   return window['go']['main']['App']['PickMaterialFile'](arg1);
+}
+
+export function PickWorkspaceDir(arg1) {
+  return window['go']['main']['App']['PickWorkspaceDir'](arg1);
 }
 
 export function PresetCatalog() {
@@ -188,6 +204,10 @@ export function WorkspaceEnsureDefault() {
 
 export function WorkspaceList() {
   return window['go']['main']['App']['WorkspaceList']();
+}
+
+export function WorkspaceMigrate(arg1, arg2) {
+  return window['go']['main']['App']['WorkspaceMigrate'](arg1, arg2);
 }
 
 export function WorkspaceOpen(arg1) {

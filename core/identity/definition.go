@@ -28,6 +28,36 @@ func (p *Package) SetTextDescription(text string) error {
 	})
 }
 
+// SetName updates the identity display name. The name is display-only: it
+// lives in the manifest and never participates in file paths (the package
+// directory is the storage path and stays unchanged).
+func (p *Package) SetName(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("identity: package name is required")
+	}
+	if len(name) > 64 {
+		return fmt.Errorf("identity: package name too long (max 64 chars)")
+	}
+	return p.Update(func(m *Manifest) error {
+		m.Identity.Name = name
+		return nil
+	})
+}
+
+// SetCategory updates the launch-page category of the identity package.
+// Empty category means "uncategorized"; a blank input clears it.
+func (p *Package) SetCategory(category string) error {
+	category = strings.TrimSpace(category)
+	if len(category) > 32 {
+		return fmt.Errorf("identity: category too long (max 32 chars)")
+	}
+	return p.Update(func(m *Manifest) error {
+		m.Identity.Category = category
+		return nil
+	})
+}
+
 // AddReferenceImage stores a reference image into the package material area and
 // references it from the manifest (task 2.3 入口 2: 参考图 → 素材区 + 引用).
 // role is RoleMainReference or RoleAuxiliaryReference and is validated against

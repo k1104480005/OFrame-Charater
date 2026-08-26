@@ -9,8 +9,11 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	gort "runtime"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/oframe/character-workbench/core/identity"
 	"github.com/oframe/character-workbench/core/logging"
@@ -178,13 +181,18 @@ func (a *App) WorkspaceEnsureDefault() (WorkspaceInfo, error) {
 	return a.workspaceInfo(ws)
 }
 
-// WorkspaceOpen opens an explicit workspace directory.
+// WorkspaceOpen opens an explicit workspace directory and persists the choice
+// so it survives the next launch (workspace-settings requirement: remember the
+// chosen workspace instead of always resetting to the C: default).
 func (a *App) WorkspaceOpen(path string) (WorkspaceInfo, error) {
 	ws, err := workspace.Open(path)
 	if err != nil {
 		return WorkspaceInfo{}, err
 	}
 	a.ws = ws
+	if err := workspace.SaveConfig(workspace.Config{Path: ws.Root()}); err != nil {
+		a.log.Warn("workspace: persist choice", "error", err)
+	}
 	a.log.Info("workspace opened", "path", ws.Root())
 	return a.workspaceInfo(ws)
 }
@@ -205,28 +213,46 @@ func (a *App) WorkspaceList() ([]PackageSummary, error) {
 		out = append(out, PackageSummary{
 			Name:           info.Name,
 			Path:           info.Path,
+			Category:       info.Category,
 			FormatVersion:  info.FormatVersion,
 			CurrentVersion: info.CurrentVersion,
+			CreatedAt:      info.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:      info.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 	return out, nil
 }
 
-// ensureWorkspace returns the current workspace, initializing the default one
-// on first use (idempotent: Init creates-if-missing).
+// ensureWorkspace returns the current workspace, initializing the preferred
+// default one on first use (idempotent: Init creates-if-missing). The preferred
+// default prefers a non-system drive and remembers a previously chosen path;
+// if that location is unusable we fall back to the user-home default so the
+// app still launches.
 func (a *App) ensureWorkspace() (*workspace.Workspace, error) {
 	if a.ws != nil {
 		return a.ws, nil
 	}
-	def, err := workspace.DefaultPath()
+	root, err := workspace.PreferredDefaultPath()
 	if err != nil {
 		return nil, err
 	}
-	ws, err := workspace.Init(def)
+	ws, err := workspace.Init(root)
 	if err != nil {
-		return nil, err
+		home, herr := workspace.DefaultPath()
+		if herr != nil {
+			return nil, err
+		}
+		ws, err = workspace.Init(home)
+		if err != nil {
+			return nil, err
+		}
 	}
 	a.ws = ws
+	// Seed the persisted choice only when the user hasn't chosen one yet, so a
+	// later explicit selection is never overwritten.
+	if cfg, cerr := workspace.LoadConfig(); cerr == nil && cfg.Path == "" {
+		_ = workspace.SaveConfig(workspace.Config{Path: ws.Root()})
+	}
 	a.log.Info("default workspace ensured", "path", ws.Root())
 	return ws, nil
 }
@@ -237,4 +263,52 @@ func (a *App) workspaceInfo(ws *workspace.Workspace) (WorkspaceInfo, error) {
 		return WorkspaceInfo{}, err
 	}
 	return WorkspaceInfo{Path: ws.Root(), PackageCount: len(pkgs)}, nil
+}
+
+// PickWorkspaceDir opens a native directory-selection dialog (Go-side; Wails
+// does not expose dialogs to the frontend) and returns the chosen absolute
+// path, or "" when the user cancels (workspace-settings requirement: a folder
+// picker instead of hand-typing the path).
+func (a *App) PickWorkspaceDir(title string) (string, error) {
+	if a.ctx == nil {
+		return "", nil // headless/test: no dialog, treat as cancel
+	}
+	path, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: title,
+	})
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// WorkspaceMigrate copies or moves the current workspace's identity packages
+// into dst, then switches the active workspace to dst and persists the choice.
+// When move is true the source packages are removed only after a verified copy
+// (workspace-settings requirement: optional migrate on workspace change).
+func (a *App) WorkspaceMigrate(dst string, move bool) (WorkspaceInfo, error) {
+	ws, err := a.ensureWorkspace()
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	if strings.TrimSpace(dst) == "" {
+		return WorkspaceInfo{}, errPathRequired
+	}
+	dstAbs, err := filepath.Abs(dst)
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	if dstAbs == ws.Root() {
+		return a.workspaceInfo(ws)
+	}
+	// A currently-open package would dangle once its directory is moved; drop
+	// the session back to the launch page so it re-lists from the new location.
+	if a.pkg != nil {
+		a.pkg = nil
+		a.emit(EventSessionChanged, nil)
+	}
+	if err := ws.Migrate(dstAbs, move); err != nil {
+		return WorkspaceInfo{}, err
+	}
+	return a.WorkspaceOpen(dstAbs)
 }

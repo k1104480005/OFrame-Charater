@@ -2,8 +2,11 @@
 
 .export-frames {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   background: var(--bg-inset);
 }
 
@@ -17,7 +20,8 @@
 
 .export-frames th {
   color: var(--ink);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.03em;
+  background: var(--bg-panel);
 }
 
 .export-frames tbody tr:last-child td {

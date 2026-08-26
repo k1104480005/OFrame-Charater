@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -123,8 +122,8 @@ func TestCopyRestore(t *testing.T) {
 
 	// Copy the whole package directory to a backup location.
 	backup := filepath.Join(t.TempDir(), "backup", "Hero-copy")
-	if err := copyDir(t, src, backup); err != nil {
-		t.Fatalf("copyDir: %v", err)
+	if err := copyTree(src, backup); err != nil {
+		t.Fatalf("copyTree: %v", err)
 	}
 
 	// Restore: open the copy as a fresh package.
@@ -165,25 +164,136 @@ func TestCopyRestore(t *testing.T) {
 	_ = ws
 }
 
-// copyDir copies a directory tree recursively (test helper for 复制恢复).
-func copyDir(t *testing.T, src, dst string) error {
-	t.Helper()
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, 0o644)
-	})
+func TestConfigPersist(t *testing.T) {
+	cfgFile := filepath.Join(t.TempDir(), "workspace.json")
+	prev := configPathResolver
+	configPathResolver = func() (string, error) { return cfgFile, nil }
+	defer func() { configPathResolver = prev }()
+
+	if _, err := LoadConfig(); err != nil {
+		t.Fatalf("LoadConfig missing file: %v", err)
+	}
+	if err := SaveConfig(Config{Path: `D:\OFrameWorkspace`}); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	got, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if got.Path != `D:\OFrameWorkspace` {
+		t.Errorf("persisted path = %q, want D:\\OFrameWorkspace", got.Path)
+	}
+	// Overwriting with an empty choice persists (used to re-seed defaults).
+	if err := SaveConfig(Config{}); err != nil {
+		t.Fatalf("SaveConfig empty: %v", err)
+	}
+	got, _ = LoadConfig()
+	if got.Path != "" {
+		t.Errorf("cleared path = %q, want empty", got.Path)
+	}
+}
+
+func TestPreferredDefaultPath(t *testing.T) {
+	cfgFile := filepath.Join(t.TempDir(), "workspace.json")
+	prev := configPathResolver
+	configPathResolver = func() (string, error) { return cfgFile, nil }
+	defer func() { configPathResolver = prev }()
+
+	// When a choice is persisted, it wins regardless of drives.
+	if err := SaveConfig(Config{Path: `/chosen/ws`}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := PreferredDefaultPath()
+	if err != nil {
+		t.Fatalf("PreferredDefaultPath: %v", err)
+	}
+	if p != `/chosen/ws` {
+		t.Errorf("PreferredDefaultPath = %q, want /chosen/ws", p)
+	}
+
+	// No choice: falls back to a path ending in the default workspace name.
+	if err := SaveConfig(Config{}); err != nil {
+		t.Fatal(err)
+	}
+	p, err = PreferredDefaultPath()
+	if err != nil {
+		t.Fatalf("PreferredDefaultPath: %v", err)
+	}
+	if filepath.Base(p) != DefaultWorkspaceName {
+		t.Errorf("PreferredDefaultPath = %q, want to end with %q", p, DefaultWorkspaceName)
+	}
+}
+
+func TestMigrateCopy(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "ws")
+	ws, err := Init(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.Create(filepath.Join(root, "Hero"), "Hero"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.Create(filepath.Join(root, "Slime"), "Slime"); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "dst")
+	if err := ws.Migrate(dst, false); err != nil {
+		t.Fatalf("Migrate(copy): %v", err)
+	}
+
+	dstWS, err := Open(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgs, err := dstWS.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pkgs) != 2 {
+		t.Fatalf("dst packages = %d, want 2", len(pkgs))
+	}
+	// Source is preserved on copy.
+	srcWS, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pkgs, _ := srcWS.List(); len(pkgs) != 2 {
+		t.Fatalf("src packages after copy = %d, want 2", len(pkgs))
+	}
+}
+
+func TestMigrateMove(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "ws")
+	ws, err := Init(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.Create(filepath.Join(root, "Hero"), "Hero"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.Create(filepath.Join(root, "Slime"), "Slime"); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(t.TempDir(), "dst")
+	if err := ws.Migrate(dst, true); err != nil {
+		t.Fatalf("Migrate(move): %v", err)
+	}
+
+	dstWS, err := Open(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pkgs, _ := dstWS.List(); len(pkgs) != 2 {
+		t.Fatalf("dst packages = %d, want 2", len(pkgs))
+	}
+	// Source packages are removed on move.
+	srcWS, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pkgs, _ := srcWS.List(); len(pkgs) != 0 {
+		t.Fatalf("src packages after move = %d, want 0", len(pkgs))
+	}
 }

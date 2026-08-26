@@ -1019,8 +1019,11 @@ export namespace main {
 	export class PackageSummary {
 	    name: string;
 	    path: string;
+	    category?: string;
 	    formatVersion: number;
 	    currentVersion: string;
+	    createdAt: string;
+	    updatedAt: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PackageSummary(source);
@@ -1030,8 +1033,11 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.path = source["path"];
+	        this.category = source["category"];
 	        this.formatVersion = source["formatVersion"];
 	        this.currentVersion = source["currentVersion"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
 	    }
 	}
 	export class StylePresetView {

@@ -1,4 +1,4 @@
-/* 设置面板（齿轮入口）：像素边框面板 + 8px 间距栅格（主题令牌）。 */
+/* 设置面板（齿轮入口）：圆润面板 + 8px 间距栅格（主题令牌）。 */
 
 .settings-overlay {
   position: fixed;
@@ -8,6 +8,7 @@
   align-items: flex-start;
   justify-content: flex-end;
   z-index: 60;
+  animation: animal-fade 0.2s ease;
 }
 
 .settings-panel {
@@ -19,7 +20,18 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-modal);
+  animation: animal-pop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes animal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes animal-pop {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
 .settings-panel__head {
@@ -51,7 +63,8 @@
 }
 
 .settings-providers__active {
-  color: var(--color-accent);
+  color: var(--primary);
+  font-weight: 700;
 }
 
 .settings-config {

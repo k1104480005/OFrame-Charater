@@ -14,7 +14,9 @@
   padding: var(--space-1);
   box-shadow: none;
   border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-sm);
   background: var(--bg-inset);
+  transition: var(--transition);
 }
 
 .edit-frame img {
@@ -22,11 +24,12 @@
   height: 48px;
   image-rendering: pixelated;
   background: var(--checker-bg, none);
+  border-radius: var(--radius-sm);
 }
 
 .edit-frame--selected {
-  border-color: var(--status-ok);
-  box-shadow: 2px 2px 0 0 var(--status-ok);
+  border-color: var(--primary);
+  box-shadow: 0 4px 0 0 var(--primary-active);
 }
 
 .edit-num {

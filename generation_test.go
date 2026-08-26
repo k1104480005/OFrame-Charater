@@ -175,7 +175,7 @@ func TestGenerationPlanBindings(t *testing.T) {
 		return filmstripPNGResp(t), nil
 	}))
 
-	if _, err := app.PackageCreate("Hero"); err != nil {
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.IdentitySetCanvas(32, 32); err != nil {

@@ -27,10 +27,13 @@ type Package struct {
 // PackageInfo is a lightweight summary of an identity package for listings
 // (used by the workspace and the CLI).
 type PackageInfo struct {
-	Name           string `json:"name"`
-	Path           string `json:"path"`
-	FormatVersion  int    `json:"formatVersion"`
-	CurrentVersion string `json:"currentVersion"`
+	Name           string    `json:"name"`
+	Path           string    `json:"path"`
+	Category       string    `json:"category,omitempty"`
+	FormatVersion  int       `json:"formatVersion"`
+	CurrentVersion string    `json:"currentVersion"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // Root returns the absolute package directory.

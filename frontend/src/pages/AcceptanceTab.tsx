@@ -26,6 +26,7 @@ import {
   rollbackTo,
 } from "../api/client";
 import { PixelCanvas } from "../components/PixelCanvas";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { useSession } from "../state/SessionContext";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -62,6 +63,7 @@ export function AcceptanceTab() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [replacePlan, setReplacePlan] = useState<GenerationPlanView | null>(null);
+  const [rollbackSeq, setRollbackSeq] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -159,7 +161,10 @@ export function AcceptanceTab() {
     });
 
   const handleRollback = (seq: number) => {
-    if (!window.confirm(`回退到操作日志第 ${seq} 条？身份包内容将恢复该点状态，后续日志保留。`)) return;
+    setRollbackSeq(seq);
+  };
+
+  const doRollback = async (seq: number) => {
     void run(`rollback:${seq}`, async () => {
       const l = await rollbackTo(seq);
       setLog(l);
@@ -390,6 +395,21 @@ export function AcceptanceTab() {
       </section>
 
       <div className="faint">验收关口：评分达阈值 且 在 PixelPerfect 预览中确认，方可通过（任务 8.3）</div>
+
+      {/* 回退确认（动森弹窗，替代原生 confirm） */}
+      <ConfirmModal
+        open={rollbackSeq !== null}
+        title="回退操作日志"
+        message={rollbackSeq !== null ? `回退到操作日志第 ${rollbackSeq} 条？\n身份包内容将恢复该点状态，后续日志保留。` : ""}
+        confirmLabel="回退"
+        danger
+        onConfirm={() => {
+          const s = rollbackSeq;
+          setRollbackSeq(null);
+          if (s !== null) void doRollback(s);
+        }}
+        onCancel={() => setRollbackSeq(null)}
+      />
     </div>
   );
 }

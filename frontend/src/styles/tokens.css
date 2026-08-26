@@ -1,9 +1,12 @@
-/* OFrame Character Workbench — 暖白/深墨双主题视觉系统 (workbench-ui spec 10.8)
- * Theme tokens as CSS custom properties. Layout uses an 8px spacing grid;
- * controls use pixel borders (2px solid + hard offset shadow, no rounded
- * corners); status colors (青绿 ok / 橙红 warn) are reserved for status
- * expression; 洋红 (#ff00ff) is used ONLY for matting technical backgrounds
- * (see .matting-bg below) and never in regular interface elements.
+/* OFrame Character Workbench — 动森风味 (animal-island-ui) 双主题视觉系统
+ * 参考 TD5 docs/style/动森风格指导.md：温暖大地色系 + 大圆角 pill 形 +
+ * 游戏按键立体感 + 柔和动效。洋红 (#ff00ff) 仍仅限抠图技术背景（matting）。
+ *
+ * 说明：
+ * - 本机/离线环境无法联网拉取 Google Fonts，字体栈优先 Nunito /
+ *   Zen Maru Gothic / Noto Sans SC（用户装有则自动生效），回退到
+ *   Comic Sans MS（圆润系系统字体，Windows 自带）→ 系统无衬线。
+ * - 交互元素一律大圆角，严禁 border-radius: 0（除抠图画布内部像素网格）。
  */
 
 :root {
@@ -14,61 +17,106 @@
   --space-4: 32px;
   --space-5: 40px;
 
-  /* pixel borders */
+  /* pixel borders → 柔和 2px 描边 */
   --border-w: 2px;
-  --border-shadow-offset: 4px;
+  --border-w-input: 2.5px;
 
-  /* status colors — status expression only */
-  --status-ok: #1e9e8a;    /* 青绿: success / running */
-  --status-ok-dim: #2f8f7c;
-  --status-warn: #e0662e;  /* 橙红: warning / failed */
-  --status-warn-dim: #b34f20;
+  /* 主色（薄荷青绿 mint） */
+  --primary: #19c8b9;
+  --primary-hover: #3dd4c6;
+  --primary-active: #11a89b;
+  --primary-bg: #e6f9f6;
+  --on-primary: #0b5f55; /* 主色按钮上的深青绿文字（禁纯黑/纯白） */
 
-  /* 洋红 — reserved for matting technical backgrounds only */
+  /* 状态色（动森映射：成功绿 / 错误红 / 焦点黄） */
+  --status-ok: #6fba2c;
+  --status-ok-dim: #5a9e1e;
+  --status-warn: #e05a5a;
+  --status-warn-dim: #c94444;
+  --focus: #ffcc00;
+  --focus-active: #e0b800;
+
+  /* 洋红 — 仅限抠图技术背景 */
   --magenta: #ff00ff;
   --magenta-dark: #b300b3;
 
-  /* pixel font accent (Press Start 2P, bundled) + readable body font */
-  --font-pixel: "Press Start 2P", "Courier New", monospace;
-  --font-body: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  /* 圆角（药丸形为按钮/输入框标志特征） */
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 20px;
+  --radius-pill: 50px;
 
-  /* focus ring */
-  --focus-ring: 0 0 0 2px var(--magenta); /* never rendered: see magenta rule */
+  /* 3D 立体阴影（游戏按键按下感） */
+  --shadow-btn: 0 5px 0 0 var(--shadow-color-btn);
+  --shadow-btn-hover: 0 6px 0 0 var(--shadow-color-btn);
+  --shadow-btn-active: 0 1px 0 0 var(--shadow-color-btn);
+  --shadow-input: 0 3px 0 0 var(--shadow-color-input);
+  --shadow-card: 0 4px 10px var(--shadow-color-card);
+  --shadow-modal: 0 8px 24px rgba(114, 93, 66, 0.25);
+  --shadow-btn-tint: 0 5px 0 0 var(--shadow-color-tint);
+
+  /* 动画 */
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 字体：Nunito 已本地打包（见 fonts.css），离线可用；中文回退系统字体 */
+  --font-body: "Nunito", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Comic Sans MS", system-ui, sans-serif;
+  --font-pixel: "Nunito", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Comic Sans MS", sans-serif;
 }
 
-/* --- 暖白 warm-white --- */
+/* --- 暖白 warm-white（动森奶油米白） --- */
 :root[data-theme="warm-white"] {
-  --bg: #faf5ec;              /* warm white canvas */
-  --bg-panel: #f3ead8;        /* panel surface */
-  --bg-elevated: #fffdf7;     /* elevated surface (drawer, modal) */
-  --bg-inset: #efe3cb;        /* inset / input surface */
-  --ink: #241e14;             /* dark ink text */
-  --ink-dim: #6b5f4a;         /* secondary text */
-  --ink-faint: #97886b;       /* tertiary / disabled text */
-  --border: #3d3322;          /* pixel border ink */
-  --border-faint: #a99a78;
+  --bg: #f8f8f0;                  /* 主背景 */
+  --bg-panel: rgb(247, 243, 223); /* 内容/卡片 */
+  --bg-elevated: #fdfbf2;         /* 抽屉/模态 */
+  --bg-inset: rgb(247, 243, 223); /* 输入框 */
+
+  --ink: #794f27;                 /* 标题/强调（温暖棕） */
+  --ink-dim: #9f927d;             /* 次级文字 */
+  --ink-faint: #c4b89e;           /* 浅棕/占位/禁用 */
+
+  --border: #9f927d;              /* 标准边框 */
+  --border-faint: #c4b89e;        /* 浅边框（输入框默认） */
   --selection: #ffe9b8;
+
+  --shadow-color-btn: #bdaea0;
+  --shadow-color-input: #d4c9b4;
+  --shadow-color-card: rgba(107, 92, 67, 0.42);
+  --shadow-color-tint: #c8b69a;
+
   --matting-checker-a: #ffffff;
   --matting-checker-b: #ffe9b8;
+
+  /* 波点纹理（动森签名质感，仅用于全局背景） */
+  --pattern-dot-a: rgba(196, 184, 158, 0.16);
+  --pattern-dot-b: rgba(196, 184, 158, 0.10);
 }
 
-/* --- 深墨 dark-ink --- */
+/* --- 深墨 dark-ink（暖深棕，非纯黑） --- */
 :root[data-theme="dark-ink"] {
-  --bg: #141210;              /* dark ink canvas */
-  --bg-panel: #1d1915;
-  --bg-elevated: #262019;
-  --bg-inset: #0f0d0b;
-  --ink: #efe6d2;             /* warm off-white text */
-  --ink-dim: #a79a7f;
-  --ink-faint: #6f6550;
-  --border: #4a3f2e;
-  --border-faint: #38301f;
-  --selection: #3a2f1e;
-  --matting-checker-a: #1d1915;
-  --matting-checker-b: #2a241b;
-}
+  --bg: #241d15;
+  --bg-panel: #322a1e;
+  --bg-elevated: #3b3223;
+  --bg-inset: #1e1710;
 
-/* Magenta is forbidden in the regular palette: the two themes above never
- * define a --magenta-fg token. The only magenta usage is the technical matting
- * background class below (alpha-check / background-removal preview views).
- */
+  --ink: #f2e7d0;
+  --ink-dim: #c8b394;
+  --ink-faint: #8a7557;
+
+  --border: #6b5a42;
+  --border-faint: #4a3d2b;
+  --selection: #4a3a22;
+
+  --shadow-color-btn: #171006;
+  --shadow-color-input: #1a140c;
+  --shadow-color-card: rgba(0, 0, 0, 0.45);
+  --shadow-color-tint: #171006;
+
+  --matting-checker-a: #1e1710;
+  --matting-checker-b: #2a241b;
+
+  /* 波点纹理（动森签名质感，仅用于全局背景） */
+  --pattern-dot-a: rgba(168, 142, 100, 0.14);
+  --pattern-dot-b: rgba(168, 142, 100, 0.09);
+}

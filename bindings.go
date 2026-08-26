@@ -5,11 +5,13 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/oframe/character-workbench/core/identity"
+	"github.com/oframe/character-workbench/core/pathutil"
 	"github.com/oframe/character-workbench/core/version"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -19,8 +21,11 @@ import (
 type PackageSummary struct {
 	Name           string `json:"name"`
 	Path           string `json:"path"`
+	Category       string `json:"category,omitempty"`
 	FormatVersion  int    `json:"formatVersion"`
 	CurrentVersion string `json:"currentVersion"`
+	CreatedAt      string `json:"createdAt"`
+	UpdatedAt      string `json:"updatedAt"`
 }
 
 // CanvasView mirrors identity.CanvasSpec for the frontend.
@@ -91,7 +96,7 @@ func (a *App) CurrentPackage() *PackageSummary {
 // PackageCreate creates a new identity package inside the current workspace and
 // opens it as the session package (launch page → workbench). The package
 // directory name is the identity name.
-func (a *App) PackageCreate(name string) (*PackageSummary, error) {
+func (a *App) PackageCreate(name, category string) (*PackageSummary, error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, errNameRequired
 	}
@@ -103,7 +108,22 @@ func (a *App) PackageCreate(name string) (*PackageSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(category) != "" {
+		if err := pkg.SetCategory(category); err != nil {
+			return nil, err
+		}
+	}
 	return a.openPackage(pkg)
+}
+
+// IdentitySetCategory sets the launch-page category of an identity package
+// (path-based; the package may be closed). Empty category clears it.
+func (a *App) IdentitySetCategory(path, category string) error {
+	pkg, err := identity.Open(path)
+	if err != nil {
+		return err
+	}
+	return pkg.SetCategory(category)
 }
 
 // PackageOpen opens an existing identity package by path and makes it the
@@ -145,8 +165,11 @@ func (a *App) packageSummary(pkg *identity.Package) *PackageSummary {
 	return &PackageSummary{
 		Name:           m.Identity.Name,
 		Path:           pkg.Root(),
+		Category:       m.Identity.Category,
 		FormatVersion:  m.FormatVersion,
 		CurrentVersion: m.Versions.Current,
+		CreatedAt:      m.Identity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:      m.Identity.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -209,6 +232,36 @@ func (a *App) IdentitySetDescription(text string) error {
 		return err
 	}
 	return a.identityChanged()
+}
+
+// IdentityRename updates the display name of an identity package. Used from the
+// launch page where the package may be closed — the directory path never
+// changes (name is display-only, stored in the manifest).
+func (a *App) IdentityRename(path, name string) error {
+	pkg, err := identity.Open(path)
+	if err != nil {
+		return err
+	}
+	return pkg.SetName(name)
+}
+
+// PackageDelete moves an identity package to the workspace trash
+// (<workspace>/.trash/<name>-<ts>) — recoverable, never hard-deleted. Refuses
+// the currently-open session package and anything outside the workspace.
+func (a *App) PackageDelete(path string) error {
+	ws, err := a.ensureWorkspace()
+	if err != nil {
+		return err
+	}
+	if a.pkg != nil && pathutil.Normalize(a.pkg.Root()) == pathutil.Normalize(path) {
+		return fmt.Errorf("当前打开的身份包不能删除，请先返回启动页")
+	}
+	dst, err := ws.TrashPackage(path)
+	if err != nil {
+		return err
+	}
+	a.log.Info("identity package moved to trash", "from", path, "to", dst)
+	return nil
 }
 
 // IdentitySetCanvas sets the logical canvas specification (task 2.4).

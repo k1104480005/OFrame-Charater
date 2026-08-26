@@ -20,6 +20,8 @@ import {
   IdentityAnchorPresets,
   IdentityGet,
   IdentityImportMaterial,
+  IdentityRename,
+  IdentitySetCategory,
   IdentitySetCanvas,
   IdentitySetDescription,
   MotionCreate,
@@ -31,6 +33,7 @@ import {
   OperationLog,
   PackageClose,
   PackageCreate,
+  PackageDelete,
   PackageOpen,
   PickMaterialFile,
   PresetCatalog,
@@ -50,6 +53,8 @@ import {
   WorkspaceList,
   WorkspaceOpen,
   WorkspacePath,
+  WorkspaceMigrate,
+  PickWorkspaceDir,
 } from "../../wailsjs/go/main/App";
 import type { main, assetexport as exportModels } from "../../wailsjs/go/models";
 import { EventsOff, EventsOn } from "../../wailsjs/runtime/runtime";
@@ -140,6 +145,18 @@ export async function currentWorkspacePath(): Promise<string> {
   return WorkspacePath();
 }
 
+// pickWorkspaceDir opens a native directory picker and resolves to the chosen
+// absolute path, or "" when the user cancels.
+export async function pickWorkspaceDir(): Promise<string> {
+  return PickWorkspaceDir("选择工作区目录");
+}
+
+// migrateWorkspace copies (move=false) or moves (move=true) the current
+// workspace's identity packages into dst and switches the active workspace.
+export async function migrateWorkspace(dst: string, move: boolean): Promise<WorkspaceInfo> {
+  return WorkspaceMigrate(dst, move);
+}
+
 export async function listPackages(): Promise<PackageSummary[]> {
   return WorkspaceList();
 }
@@ -150,8 +167,8 @@ export async function currentPackage(): Promise<PackageSummary | null> {
   return CurrentPackage();
 }
 
-export async function createPackage(name: string): Promise<PackageSummary> {
-  return PackageCreate(name);
+export async function createPackage(name: string, category = ""): Promise<PackageSummary> {
+  return PackageCreate(name, category);
 }
 
 export async function openPackage(path: string): Promise<PackageSummary> {
@@ -170,6 +187,21 @@ export async function fetchIdentity(): Promise<IdentityView> {
 
 export async function saveDescription(text: string): Promise<void> {
   return IdentitySetDescription(text);
+}
+
+/** rename an identity package's display name (launch page; directory unchanged) */
+export async function renameIdentity(path: string, name: string): Promise<void> {
+  return IdentityRename(path, name);
+}
+
+/** set an identity package's category (launch page; empty clears it) */
+export async function setPackageCategory(path: string, category: string): Promise<void> {
+  return IdentitySetCategory(path, category);
+}
+
+/** move an identity package to the workspace trash (launch page; recoverable) */
+export async function deletePackage(path: string): Promise<void> {
+  return PackageDelete(path);
 }
 
 export async function saveCanvas(width: number, height: number): Promise<void> {
