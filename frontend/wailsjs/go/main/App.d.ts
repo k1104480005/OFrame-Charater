@@ -17,6 +17,8 @@ export function CurrentPackage():Promise<main.PackageSummary>;
 
 export function DirectionPreview(arg1:string,arg2:string):Promise<main.CandidatePreviewView>;
 
+export function EditDirection(arg1:string,arg2:string,arg3:Array<main.EditInstructionView>):Promise<main.EditResultView>;
+
 export function ExportCreate(arg1:string,arg2:string,arg3:string):Promise<assetexport.Result>;
 
 export function ExportHistory():Promise<Array<assetexport.HistoryRecord>>;

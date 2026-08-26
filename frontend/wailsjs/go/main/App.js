@@ -30,6 +30,10 @@ export function DirectionPreview(arg1, arg2) {
   return window['go']['main']['App']['DirectionPreview'](arg1, arg2);
 }
 
+export function EditDirection(arg1, arg2, arg3) {
+  return window['go']['main']['App']['EditDirection'](arg1, arg2, arg3);
+}
+
 export function ExportCreate(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportCreate'](arg1, arg2, arg3);
 }

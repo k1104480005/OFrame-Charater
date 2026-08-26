@@ -9,6 +9,7 @@ import {
   CurrentAssets,
   CurrentPackage,
   DirectionPreview,
+  EditDirection,
   ExportCreate,
   ExportHistory,
   ExportValidate,
@@ -65,6 +66,9 @@ export type CandidatePreviewView = main.CandidatePreviewView;
 export type CanvasView = main.CanvasView;
 export type ConsistencyScoreView = main.ConsistencyScoreView;
 export type DirectionView = main.DirectionView;
+export type EditInstructionView = main.EditInstructionView;
+export type EditFrameMetaView = main.EditFrameMetaView;
+export type EditResultView = main.EditResultView;
 export type FrameView = main.FrameView;
 export type GenerationPlanView = main.GenerationPlanView;
 export type GenerationRequestView = main.GenerationRequestView;
@@ -316,6 +320,39 @@ export async function fetchConsistencyScore(useAI: boolean): Promise<Consistency
 
 export async function fetchDirectionPreview(motionId: string, direction: string): Promise<CandidatePreviewView> {
   return DirectionPreview(motionId, direction);
+}
+
+// --- lightweight editing (阶段 7: 可回放编辑指令, 任务 7.1–7.5) ---
+
+/** plain edit instruction input (mapped to the generated model by the wrapper) */
+export interface EditInstructionInput {
+  kind: string;
+  frameIndex?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  r?: number;
+  g?: number;
+  b?: number;
+  a?: number;
+  durationMs?: number;
+  deltaX?: number;
+  deltaY?: number;
+  order?: number[];
+  framePng?: string;
+  frameMeta?: { durationMs?: number; anchorX?: number; anchorY?: number };
+}
+
+/** apply replayable edit instructions to a motion direction's animation assets */
+export async function editDirection(
+  motionId: string,
+  direction: string,
+  instructions: EditInstructionInput[],
+): Promise<EditResultView> {
+  // The generated model class carries a `convertValues` method; the Wails
+  // bridge serializes plain JSON, so a structural cast is sufficient here.
+  return EditDirection(motionId, direction, instructions as unknown as EditInstructionView[]);
 }
 
 // --- export capability (tasks 11.1–11.4) ---

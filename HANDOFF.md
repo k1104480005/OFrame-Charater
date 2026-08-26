@@ -58,12 +58,9 @@ wails generate module    已执行，绑定已重新生成
 
 ### 4.1 阶段 8 前端接线（已完成 ✅）
 
-任务 10.5（导出标签）、10.6（设置入口）、11.1–11.4（导出）已全部接线并验证：
-
-1. `frontend/src/api/client.ts` 已导入 `ExportCreate/ExportValidate/ExportHistory`，补类型 re-export 与 `exportPackage()/validateExport()/fetchExportHistory()` 包装函数（`assetexport` 命名空间）。
-2. `frontend/src/pages/ExportTab.tsx` 已实现真实导出界面：资产检视（帧序列 + 锚点清单 + PixelPerfect 预览）、引擎目标选择、输出目录、导出生成与校验、导出历史。
-3. `frontend/src/components/SettingsPanel.tsx` 已补齐外观主题（暖白/深墨）切换。
-4. **未做（遗留）**：`EditPage.tsx` 仍为占位页 —— `core/edit` 核心已完成（任务 7.x 已勾选），但 service 层与绑定未接 edit，前端编辑页未真实调用。属「可交付性改进」，非阻塞；接线需新增 service 方法 + Go 绑定 + 重新生成绑定 + 编辑 UI。
+任务 10.5（导出标签）、10.6（设置入口）、11.1–11.4（导出）已全部接线并验证；
+**编辑页已接线**（`core/service/edit.go` + `edit_bindings.go` + `EditPage.tsx` 真实 UI：
+删除帧/顺序/时长/批量去背景/锚点偏移，指令可回放、写回当前版本资产）。
 
 ### 4.2 剩余未勾选任务（68 项中余 1 项）
 

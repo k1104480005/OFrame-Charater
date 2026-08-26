@@ -1,0 +1,34 @@
+/* 编辑页：帧条缩略图与数字输入框样式。 */
+
+.edit-frames {
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-2);
+}
+
+.edit-frame {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1);
+  box-shadow: none;
+  border: var(--border-w) solid var(--border-faint);
+  background: var(--bg-inset);
+}
+
+.edit-frame img {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  background: var(--checker-bg, none);
+}
+
+.edit-frame--selected {
+  border-color: var(--status-ok);
+  box-shadow: 2px 2px 0 0 var(--status-ok);
+}
+
+.edit-num {
+  width: 72px;
+}

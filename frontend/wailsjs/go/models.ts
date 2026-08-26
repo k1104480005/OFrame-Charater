@@ -561,6 +561,102 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class EditFrameMetaView {
+	    durationMs: number;
+	    anchorX: number;
+	    anchorY: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditFrameMetaView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.durationMs = source["durationMs"];
+	        this.anchorX = source["anchorX"];
+	        this.anchorY = source["anchorY"];
+	    }
+	}
+	export class EditInstructionView {
+	    kind: string;
+	    frameIndex?: number;
+	    x?: number;
+	    y?: number;
+	    width?: number;
+	    height?: number;
+	    r?: number;
+	    g?: number;
+	    b?: number;
+	    a?: number;
+	    durationMs?: number;
+	    deltaX?: number;
+	    deltaY?: number;
+	    order?: number[];
+	    framePng?: string;
+	    frameMeta?: EditFrameMetaView;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditInstructionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.frameIndex = source["frameIndex"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.r = source["r"];
+	        this.g = source["g"];
+	        this.b = source["b"];
+	        this.a = source["a"];
+	        this.durationMs = source["durationMs"];
+	        this.deltaX = source["deltaX"];
+	        this.deltaY = source["deltaY"];
+	        this.order = source["order"];
+	        this.framePng = source["framePng"];
+	        this.frameMeta = this.convertValues(source["frameMeta"], EditFrameMetaView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class EditResultView {
+	    motionId: string;
+	    direction: string;
+	    frameCount: number;
+	    durationsMs: number[];
+	    logSeq: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditResultView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.motionId = source["motionId"];
+	        this.direction = source["direction"];
+	        this.frameCount = source["frameCount"];
+	        this.durationsMs = source["durationsMs"];
+	        this.logSeq = source["logSeq"];
+	    }
+	}
 	
 	export class PromptSnapshotView {
 	    stylePresetId: string;
