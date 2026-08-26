@@ -1,0 +1,27 @@
+.pixel-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.pixel-canvas__label {
+  color: var(--ink-dim);
+}
+
+.pixel-canvas__host {
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-inset);
+  image-rendering: pixelated;
+  line-height: 0;
+}
+
+/* Matting/alpha-check view: the magenta technical background is confined to
+ * this host — it never leaks into regular UI surfaces. */
+.pixel-canvas__host--matting {
+  border-color: var(--status-warn);
+}
+
+.pixel-canvas__hint {
+  font-size: 12px;
+}

@@ -3,6 +3,7 @@
 // batch capabilities, with every edit recorded as a replayable, append-only
 // instruction so storage is non-destructive by construction (design D8).
 //
-// This package is a skeleton in phase 1 (Go core & workspace); the editing
-// capability lands with tasks 7.1–7.5.
+// The package is used by the application layer for non-destructive frame and
+// sequence revisions; callers can replay the instruction list and pass the
+// resulting images back through the pipeline quality scorer.
 package edit

@@ -1,0 +1,12 @@
+{
+  "sliceCompleteness": 1,
+  "anchorDeviationPx": 11,
+  "anchorDeviation": 0.2430679560328757,
+  "areaJitter": 0,
+  "centroidJitter": 0,
+  "colorCount": 1,
+  "paletteConsistency": 1,
+  "mirrorSymmetry": 1,
+  "outOfBoundsRatio": 0,
+  "overall": 0.9513864087934248
+}

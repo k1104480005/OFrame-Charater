@@ -214,8 +214,8 @@ func TestMigratorApplyWithStub(t *testing.T) {
 		t.Fatalf("Apply: %v", err)
 	}
 	v, err := m.CurrentVersion(ctx)
-	if err != nil || v != 1 {
-		t.Fatalf("CurrentVersion = %d, %v; want 1", v, err)
+	if err != nil || v != 3 {
+		t.Fatalf("CurrentVersion = %d, %v; want 3", v, err)
 	}
 	if !stub.tables["tasks"] || !stub.tables["meta"] || !stub.tables["schema_migrations"] {
 		t.Fatalf("tables created: %v", stub.tables)
@@ -224,7 +224,7 @@ func TestMigratorApplyWithStub(t *testing.T) {
 		t.Errorf("tasks DDL not executed; execs: %v", stub.execs)
 	}
 	applied, err := m.appliedVersions(ctx)
-	if err != nil || len(applied) != 1 || !applied[1] {
+	if err != nil || len(applied) != 3 || !applied[1] || !applied[2] || !applied[3] {
 		t.Fatalf("applied versions = %v, %v", applied, err)
 	}
 
@@ -235,11 +235,11 @@ func TestMigratorApplyWithStub(t *testing.T) {
 		t.Fatalf("second Apply: %v", err)
 	}
 	applied, err = m.appliedVersions(ctx)
-	if err != nil || len(applied) != 1 {
+	if err != nil || len(applied) != 3 {
 		t.Fatalf("applied after second Apply = %v, %v", applied, err)
 	}
-	if n := stub.countExecs("INSERT INTO SCHEMA_MIGRATIONS"); n != 1 {
-		t.Errorf("schema_migrations inserts = %d, want 1 (idempotency broken)", n)
+	if n := stub.countExecs("INSERT INTO SCHEMA_MIGRATIONS"); n != 3 {
+		t.Errorf("schema_migrations inserts = %d, want 3 (idempotency broken)", n)
 	}
 	if n := stub.countExecs("CREATE TABLE IF NOT EXISTS TASKS"); n != 1 {
 		t.Errorf("tasks DDL executions = %d, want 1 (idempotency broken)", n)

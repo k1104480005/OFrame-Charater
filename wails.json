@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "oframe-character-workbench",
+  "outputfilename": "OFrameCharacterWorkbench",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "OFrame Character",
+    "email": "dev@oframe.local"
+  },
+  "info": {
+    "companyName": "OFrame Character",
+    "productName": "OFrame Character Workbench",
+    "productVersion": "0.2.0",
+    "copyright": "Copyright (c) 2025 OFrame Character"
+  }
+}

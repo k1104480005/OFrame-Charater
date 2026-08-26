@@ -1,0 +1,13 @@
+{
+  "builtAt": "2026-08-26T09:41:36.2071736Z",
+  "stylePresetId": "pixel_classic",
+  "actionPresetId": "walk",
+  "description": "一个绿色的像素小英雄：2D 像素风格，头戴小帽、身披披风，正面朝下行走，动作清晰连贯，适合作为游戏主角动画。",
+  "referenceMaterialIds": [],
+  "references": null,
+  "canvasWidth": 32,
+  "canvasHeight": 32,
+  "frameCount": 4,
+  "directions": 4,
+  "prompt": "2D pixel art game character animation asset. Character: 一个绿色的像素小英雄：2D 像素风格，头戴小帽、身披披风，正面朝下行走，动作清晰连贯，适合作为游戏主角动画。. Animation: walking animation, steady stride cycle. classic pixel art style, limited color palette, hard pixel edges, no anti-aliasing, no gradients. Render the animation as one single horizontal filmstrip containing 4 frames of 32x32 pixels each, frames in left-to-right order, character centered in every frame, transparent background, no borders, no text, no watermarks."
+}

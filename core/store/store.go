@@ -17,6 +17,11 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	// Register the pure-Go SQLite driver (modernc.org/sqlite) as "sqlite" so
+	// store.Migrate / store.Open work without callers importing the driver
+	// (design D7: the local task queue database).
+	_ "modernc.org/sqlite"
 )
 
 // Migration is one versioned schema migration. Version must be a positive
@@ -31,7 +36,33 @@ type Migration struct {
 // Append-only: never renumber or edit an applied migration — add a new one.
 var Migrations = []Migration{
 	{Version: 1, Name: "init", SQL: schemaInit},
+	// v2: task_results — the idempotent success-result cache (tasks 6.4/4.8:
+	// 相同任务成功结果缓存, 不重复计费). keyed by a deterministic task
+	// fingerprint; the result payload is opaque JSON.
+	{Version: 2, Name: "task_results", SQL: schemaTaskResults},
+	// v3: task_ext — the persistent-session columns on the tasks table
+	// (payload for re-execution, success result for the dedup cache, and the
+	// dedup fingerprint). Added with ALTER so migration v1 stays immutable.
+	{Version: 3, Name: "task_ext", SQL: schemaTaskExt},
 }
+
+// schemaTaskExt adds the persistent-session columns to the tasks table.
+const schemaTaskExt = `
+ALTER TABLE tasks ADD COLUMN payload TEXT NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN result TEXT NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN fingerprint TEXT NOT NULL DEFAULT '';
+`
+
+// schemaTaskResults defines the success-result cache table used for idempotent
+// deduplication: the fingerprint identifies an identical task, the result
+// payload is reused without issuing a new external call.
+const schemaTaskResults = `
+CREATE TABLE IF NOT EXISTS task_results (
+    fingerprint TEXT PRIMARY KEY,
+    result      TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+`
 
 // schemaInit defines the initial schema: the recoverable task queue table
 // (provider parameters, expected call count, status, progress, error, retry

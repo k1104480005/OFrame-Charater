@@ -1,0 +1,64 @@
+/* 设置面板（齿轮入口）：像素边框面板 + 8px 间距栅格（主题令牌）。 */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  z-index: 60;
+}
+
+.settings-panel {
+  width: 420px;
+  max-width: 92vw;
+  max-height: 86vh;
+  overflow-y: auto;
+  margin: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.25);
+}
+
+.settings-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-panel h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-providers,
+.settings-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.settings-providers__active {
+  color: var(--color-accent);
+}
+
+.settings-config {
+  gap: 4px;
+}
+
+.settings-config input,
+.settings-config select {
+  width: 100%;
+}

@@ -27,6 +27,27 @@ const (
 	MaterialKindSprite         = "sprite"          // 既有精灵
 )
 
+// MaterialRole is the semantic role of a material inside the identity
+// definition (1 主参考图 + 最多 2 辅助参考图 semantics).
+type MaterialRole = string
+
+// Material roles express the reference-image semantics (阶段 3: 1 主参考图 +
+// 最多 2 辅助参考图). A reference image is either the single main reference
+// (主参考图) or one of at most two auxiliary references (辅助参考图); a sprite
+// material always carries the sprite role.
+const (
+	RoleMainReference      = "main_reference"      // 主参考图（最多 1 张）
+	RoleAuxiliaryReference = "auxiliary_reference" // 辅助参考图（最多 2 张）
+	RoleSprite             = "sprite"              // 既有精灵
+)
+
+// MaxMainReferences and MaxAuxiliaryReferences bound the reference-image roles
+// (1 主参考图 + 最多 2 辅助参考图).
+const (
+	MaxMainReferences      = 1
+	MaxAuxiliaryReferences = 2
+)
+
 // Identity definition entry kinds (task 2.3).
 const (
 	EntryKindText           = "text"            // 文字描述
@@ -134,10 +155,13 @@ type Anchor struct {
 
 // Material is a reference to a file stored in the package material area
 // (task 2.3 素材区 / 素材引用). Path is relative to the package root and uses
-// forward slashes for portability.
+// forward slashes for portability. Role carries the reference semantics
+// (main_reference | auxiliary_reference | sprite); older packages may leave it
+// empty, in which case role-based validation treats the material as unassigned.
 type Material struct {
 	ID      string    `json:"id"`
 	Kind    string    `json:"kind"` // reference_image | sprite
+	Role    string    `json:"role,omitempty"`
 	Name    string    `json:"name"`
 	Path    string    `json:"path"`
 	AddedAt time.Time `json:"addedAt"`

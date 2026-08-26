@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "identity": {
+    "id": "a6468872-9041-4d3d-93c1-bd9420e3d32f",
+    "name": "Hero",
+    "description": "一个绿色的像素小英雄：2D 像素风格，头戴小帽、身披披风，正面朝下行走，动作清晰连贯，适合作为游戏主角动画。",
+    "entryKind": "text",
+    "createdAt": "2026-08-26T09:41:36.1974065Z",
+    "updatedAt": "2026-08-26T09:41:36.2010188Z"
+  },
+  "logicalCanvas": {
+    "unitWidth": 32,
+    "unitHeight": 32,
+    "coordinateRange": {
+      "xMin": 0,
+      "yMin": 0,
+      "xMax": 31,
+      "yMax": 31
+    }
+  },
+  "anchors": [
+    {
+      "id": "38fd36a5-115e-4325-8340-cd02c86f8479",
+      "name": "脚底",
+      "preset": "feet",
+      "x": 16,
+      "y": 31,
+      "coordinateRange": {
+        "xMin": 0,
+        "yMin": 0,
+        "xMax": 31,
+        "yMax": 31
+      }
+    }
+  ],
+  "references": {
+    "candidateHistory": "candidates/index.json",
+    "operationLog": "log/operations.jsonl"
+  },
+  "versions": {
+    "current": "v1",
+    "items": [
+      {
+        "id": "v1",
+        "createdAt": "2026-08-26T09:41:36.1974065Z",
+        "reason": "initial",
+        "immutable": true,
+        "assetsRef": "versions/v1/assets"
+      }
+    ]
+  }
+}

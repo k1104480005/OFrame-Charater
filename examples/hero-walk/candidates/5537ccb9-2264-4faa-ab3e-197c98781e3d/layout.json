@@ -1,0 +1,45 @@
+{
+  "Canvas": {
+    "unitWidth": 32,
+    "unitHeight": 32,
+    "coordinateRange": {
+      "xMin": 0,
+      "yMin": 0,
+      "xMax": 31,
+      "yMax": 31
+    }
+  },
+  "FrameCount": 4,
+  "Frames": [
+    {
+      "Index": 0,
+      "X": 0,
+      "Y": 0,
+      "Width": 32,
+      "Height": 32
+    },
+    {
+      "Index": 1,
+      "X": 32,
+      "Y": 0,
+      "Width": 32,
+      "Height": 32
+    },
+    {
+      "Index": 2,
+      "X": 64,
+      "Y": 0,
+      "Width": 32,
+      "Height": 32
+    },
+    {
+      "Index": 3,
+      "X": 96,
+      "Y": 0,
+      "Width": 32,
+      "Height": 32
+    }
+  ],
+  "StripWidth": 128,
+  "StripHeight": 32
+}

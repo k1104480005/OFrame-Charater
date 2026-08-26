@@ -1,0 +1,25 @@
+/* 导出标签专用样式：资产检视的帧序列 + 锚点清单表格。 */
+
+.export-frames {
+  width: 100%;
+  border-collapse: collapse;
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-inset);
+}
+
+.export-frames th,
+.export-frames td {
+  text-align: left;
+  padding: calc(var(--space-1) - 2px) var(--space-2);
+  border-bottom: var(--border-w) solid var(--border-faint);
+  color: var(--ink-dim);
+}
+
+.export-frames th {
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+
+.export-frames tbody tr:last-child td {
+  border-bottom: none;
+}

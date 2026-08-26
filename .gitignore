@@ -11,8 +11,13 @@
 *.db-shm
 *.db-wal
 
-# Wails build output (later phases)
+# Wails build output
 /build/bin/
+frontend/node_modules/
+# frontend/dist is embedded via //go:embed; the stub index.html is committed
+# so `go build ./...` works on a fresh clone (real build output replaces it).
+frontend/dist/*
+!frontend/dist/index.html
 
 # OS noise
 Thumbs.db
@@ -22,3 +27,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# WorkBuddy workspace data (memory/logs, not part of the product)
+.workbuddy/

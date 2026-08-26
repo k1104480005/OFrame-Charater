@@ -50,12 +50,15 @@ func TestReferenceImageEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := writeTempFile(t, "ref.png", []byte("png-bytes"))
-	mat, err := pkg.AddReferenceImage(src, "参考图")
+	mat, err := pkg.AddReferenceImage(src, "参考图", RoleMainReference)
 	if err != nil {
 		t.Fatalf("AddReferenceImage: %v", err)
 	}
 	if mat.Kind != MaterialKindReferenceImage {
 		t.Errorf("material kind = %q", mat.Kind)
+	}
+	if mat.Role != RoleMainReference {
+		t.Errorf("material role = %q, want main_reference", mat.Role)
 	}
 	// The file exists inside the package material area.
 	abs, err := pkg.MaterialPath(*mat)
@@ -118,7 +121,7 @@ func TestAddMaterialRejectsMissingSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pkg.AddReferenceImage(filepath.Join(t.TempDir(), "nope.png"), "x"); err == nil {
+	if _, err := pkg.AddReferenceImage(filepath.Join(t.TempDir(), "nope.png"), "x", RoleMainReference); err == nil {
 		t.Fatal("AddReferenceImage should fail for a missing source")
 	}
 	if len(pkg.Materials()) != 0 {

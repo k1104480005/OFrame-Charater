@@ -78,6 +78,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 		runErr = cmdWorkspace(cmdArgs, jsonOut, stdout)
 	case "identity":
 		runErr = cmdIdentity(cmdArgs, jsonOut, stdout)
+	case "provider":
+		runErr = cmdProvider(cmdArgs, jsonOut, stdout)
+	case "generation":
+		runErr = cmdGeneration(cmdArgs, jsonOut, stdout)
+	case "validate":
+		runErr = cmdValidate(cmdArgs, jsonOut, stdout)
+	case "export":
+		runErr = cmdExport(cmdArgs, jsonOut, stdout)
 	default:
 		runErr = fmt.Errorf("unknown command %q (see 'oframe help')", cmd)
 	}
@@ -102,6 +110,26 @@ Commands:
   identity create --workspace <path> --name <name>
                                 create a new identity package
   identity open <path>          open and validate an identity package
+  identity canvas --width <w> --height <h> <path>
+                                set the logical canvas (required before
+                                generation)
+  provider list                 list providers and their local config status
+  provider config get <id>      show a provider's local config
+  provider config set <id> ...  set key/model/endpoint (local, validated)
+  provider validate <id>        offline configuration validation
+  provider stats                local call statistics (次数与费用估算)
+  generation plan [flags] <identity-package-path>
+                                build the generation confirmation plan
+                                (no external calls)
+  generation run [flags] --yes <identity-package-path>
+                                execute generation after explicit confirmation;
+                                without --yes nothing is called
+  validate <path>               validate an identity or export package
+  export create --output <dir> [--target <generic|godot|unity>] <pkg>
+                                 build and validate an export package
+  export validate <dir>         validate an existing export package
+  export history [--settings-dir <dir>] <pkg>
+                                show export history
   help                          show this help
 
 Global flag --json switches stdout to machine-readable JSON.
@@ -197,16 +225,43 @@ func openWorkspace(path string) (*workspace.Workspace, error) {
 
 func cmdIdentity(args []string, jsonOut bool, stdout io.Writer) error {
 	if len(args) == 0 {
-		return fmt.Errorf("identity requires a subcommand: create | open")
+		return fmt.Errorf("identity requires a subcommand: create | open | canvas")
 	}
 	switch args[0] {
 	case "create":
 		return cmdIdentityCreate(args[1:], jsonOut, stdout)
 	case "open":
 		return cmdIdentityOpen(args[1:], jsonOut, stdout)
+	case "canvas":
+		return cmdIdentityCanvas(args[1:], jsonOut, stdout)
 	default:
-		return fmt.Errorf("unknown identity subcommand %q (create|open)", args[0])
+		return fmt.Errorf("unknown identity subcommand %q (create|open|canvas)", args[0])
 	}
+}
+
+// cmdIdentityCanvas sets the logical canvas specification of an identity
+// package (task 2.4). Generation requires a canvas, so CLI-created packages
+// must set it before `generation plan|run`.
+func cmdIdentityCanvas(args []string, jsonOut bool, stdout io.Writer) error {
+	fs := flag.NewFlagSet("identity canvas", flag.ContinueOnError)
+	width := fs.Int("width", 0, "logical canvas unit width (pixels)")
+	height := fs.Int("height", 0, "logical canvas unit height (pixels)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 || *width <= 0 || *height <= 0 {
+		return fmt.Errorf("usage: oframe identity canvas --width <w> --height <h> <identity-package-path>")
+	}
+	pkg, err := identity.Open(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	if err := pkg.SetLogicalCanvas(*width, *height); err != nil {
+		return err
+	}
+	return emit(stdout, jsonOut,
+		map[string]any{"ok": true, "action": "canvas", "path": fs.Arg(0), "canvas": map[string]int{"width": *width, "height": *height}},
+		fmt.Sprintf("logical canvas set to %dx%d", *width, *height))
 }
 
 func cmdIdentityCreate(args []string, jsonOut bool, stdout io.Writer) error {

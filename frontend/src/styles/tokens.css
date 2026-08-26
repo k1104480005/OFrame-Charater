@@ -1,0 +1,74 @@
+/* OFrame Character Workbench — 暖白/深墨双主题视觉系统 (workbench-ui spec 10.8)
+ * Theme tokens as CSS custom properties. Layout uses an 8px spacing grid;
+ * controls use pixel borders (2px solid + hard offset shadow, no rounded
+ * corners); status colors (青绿 ok / 橙红 warn) are reserved for status
+ * expression; 洋红 (#ff00ff) is used ONLY for matting technical backgrounds
+ * (see .matting-bg below) and never in regular interface elements.
+ */
+
+:root {
+  /* 8px spacing grid */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+
+  /* pixel borders */
+  --border-w: 2px;
+  --border-shadow-offset: 4px;
+
+  /* status colors — status expression only */
+  --status-ok: #1e9e8a;    /* 青绿: success / running */
+  --status-ok-dim: #2f8f7c;
+  --status-warn: #e0662e;  /* 橙红: warning / failed */
+  --status-warn-dim: #b34f20;
+
+  /* 洋红 — reserved for matting technical backgrounds only */
+  --magenta: #ff00ff;
+  --magenta-dark: #b300b3;
+
+  /* pixel font accent (Press Start 2P, bundled) + readable body font */
+  --font-pixel: "Press Start 2P", "Courier New", monospace;
+  --font-body: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* focus ring */
+  --focus-ring: 0 0 0 2px var(--magenta); /* never rendered: see magenta rule */
+}
+
+/* --- 暖白 warm-white --- */
+:root[data-theme="warm-white"] {
+  --bg: #faf5ec;              /* warm white canvas */
+  --bg-panel: #f3ead8;        /* panel surface */
+  --bg-elevated: #fffdf7;     /* elevated surface (drawer, modal) */
+  --bg-inset: #efe3cb;        /* inset / input surface */
+  --ink: #241e14;             /* dark ink text */
+  --ink-dim: #6b5f4a;         /* secondary text */
+  --ink-faint: #97886b;       /* tertiary / disabled text */
+  --border: #3d3322;          /* pixel border ink */
+  --border-faint: #a99a78;
+  --selection: #ffe9b8;
+  --matting-checker-a: #ffffff;
+  --matting-checker-b: #ffe9b8;
+}
+
+/* --- 深墨 dark-ink --- */
+:root[data-theme="dark-ink"] {
+  --bg: #141210;              /* dark ink canvas */
+  --bg-panel: #1d1915;
+  --bg-elevated: #262019;
+  --bg-inset: #0f0d0b;
+  --ink: #efe6d2;             /* warm off-white text */
+  --ink-dim: #a79a7f;
+  --ink-faint: #6f6550;
+  --border: #4a3f2e;
+  --border-faint: #38301f;
+  --selection: #3a2f1e;
+  --matting-checker-a: #1d1915;
+  --matting-checker-b: #2a241b;
+}
+
+/* Magenta is forbidden in the regular palette: the two themes above never
+ * define a --magenta-fg token. The only magenta usage is the technical matting
+ * background class below (alpha-check / background-removal preview views).
+ */

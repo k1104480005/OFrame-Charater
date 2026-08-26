@@ -29,24 +29,136 @@ func (p *Package) SetTextDescription(text string) error {
 }
 
 // AddReferenceImage stores a reference image into the package material area and
-// references it from the manifest (task 2.3 入口 2: 参考图 → 素材区 + 引用). When
-// no identity entry exists yet, the material becomes the identity entry basis.
-func (p *Package) AddReferenceImage(src, name string) (*Material, error) {
-	return p.addMaterial(MaterialKindReferenceImage, src, name)
+// references it from the manifest (task 2.3 入口 2: 参考图 → 素材区 + 引用).
+// role is RoleMainReference or RoleAuxiliaryReference and is validated against
+// the reference-image semantics (1 主参考图 + 最多 2 辅助参考图). When no
+// identity entry exists yet, the material becomes the identity entry basis.
+func (p *Package) AddReferenceImage(src, name string, role MaterialRole) (*Material, error) {
+	return p.addMaterial(MaterialKindReferenceImage, src, name, role)
 }
 
 // ImportSprite stores an existing sprite as material and uses it as the basis
 // for the identity definition (task 2.3 入口 3: 既有精灵 → 素材区 + 身份定义基础).
+// Sprites always carry the sprite role.
 func (p *Package) ImportSprite(src, name string) (*Material, error) {
-	return p.addMaterial(MaterialKindSprite, src, name)
+	return p.addMaterial(MaterialKindSprite, src, name, RoleSprite)
+}
+
+// SetMaterialRole re-assigns the role of an existing reference-image material
+// (e.g. promoting an auxiliary reference to the main reference), enforcing the
+// 1 主参考图 + 最多 2 辅助参考图 bounds. Sprite materials cannot change role.
+func (p *Package) SetMaterialRole(id string, role MaterialRole) (*Material, error) {
+	if role != RoleMainReference && role != RoleAuxiliaryReference {
+		return nil, fmt.Errorf("identity: invalid reference role %q", role)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	idx := -1
+	for i := range p.manifest.Materials {
+		if p.manifest.Materials[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("identity: material %q not found", id)
+	}
+	if p.manifest.Materials[idx].Kind != MaterialKindReferenceImage {
+		return nil, fmt.Errorf("identity: material %q is %s and cannot carry a reference role", id, p.manifest.Materials[idx].Kind)
+	}
+	m := p.manifest
+	// Validate against the full set with the target's new role applied, so a
+	// promotion to main fails while another main exists (2 mains are never
+	// allowed).
+	snap := make([]Material, len(m.Materials))
+	copy(snap, m.Materials)
+	snap[idx].Role = role
+	if err := checkReferenceRoles(snap); err != nil {
+		return nil, err
+	}
+	m.Materials[idx].Role = role
+	m.Identity.UpdatedAt = time.Now().UTC()
+	p.manifest = m
+	if err := p.saveLocked(); err != nil {
+		return nil, err
+	}
+	p.log.Info("identity material role set", "package", p.root, "id", id, "role", role)
+	mat := m.Materials[idx]
+	return &mat, nil
+}
+
+// ReferenceImages returns the reference-image materials ordered by role:
+// main reference first, then auxiliary references in insertion order.
+func (p *Package) ReferenceImages() []Material {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	out := make([]Material, 0, len(p.manifest.Materials))
+	for _, m := range p.manifest.Materials {
+		if m.Kind == MaterialKindReferenceImage {
+			out = append(out, m)
+		}
+	}
+	stable := func(role string) []Material {
+		var r []Material
+		for _, m := range out {
+			if m.Role == role {
+				r = append(r, m)
+			}
+		}
+		return r
+	}
+	main := stable(RoleMainReference)
+	aux := stable(RoleAuxiliaryReference)
+	// Unassigned reference images (role empty, from older packages) sort last.
+	rest := stable("")
+	return append(append(append([]Material(nil), main...), aux...), rest...)
+}
+
+// ValidateReferenceRoles checks the 1 主参考图 + 最多 2 辅助参考图 bounds across
+// the package's reference-image materials.
+func (p *Package) ValidateReferenceRoles() error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return checkReferenceRoles(p.manifest.Materials)
+}
+
+// checkReferenceRoles enforces the reference-role bounds. Caller must hold the
+// manifest lock.
+func checkReferenceRoles(materials []Material) error {
+	main, aux := 0, 0
+	for _, m := range materials {
+		if m.Kind != MaterialKindReferenceImage {
+			continue
+		}
+		switch m.Role {
+		case RoleMainReference:
+			main++
+		case RoleAuxiliaryReference:
+			aux++
+		case "":
+			// unassigned — ignored by the bounds
+		default:
+			return fmt.Errorf("identity: material %q has invalid reference role %q", m.ID, m.Role)
+		}
+	}
+	if main > MaxMainReferences {
+		return fmt.Errorf("identity: at most %d main reference image allowed, found %d", MaxMainReferences, main)
+	}
+	if aux > MaxAuxiliaryReferences {
+		return fmt.Errorf("identity: at most %d auxiliary reference images allowed, found %d", MaxAuxiliaryReferences, aux)
+	}
+	return nil
 }
 
 // addMaterial copies src into the package material area and appends a
 // reference. On any failure no partial state is left behind: a failed manifest
 // write removes the copied file.
-func (p *Package) addMaterial(kind, src, name string) (*Material, error) {
+func (p *Package) addMaterial(kind, src, name string, role MaterialRole) (*Material, error) {
 	if kind != MaterialKindReferenceImage && kind != MaterialKindSprite {
 		return nil, fmt.Errorf("identity: unknown material kind %q", kind)
+	}
+	if kind == MaterialKindReferenceImage && role != RoleMainReference && role != RoleAuxiliaryReference {
+		return nil, fmt.Errorf("identity: invalid reference role %q", role)
 	}
 	src = pathutil.Normalize(src)
 	data, err := os.ReadFile(src)
@@ -70,9 +182,13 @@ func (p *Package) addMaterial(kind, src, name string) (*Material, error) {
 	if err := os.WriteFile(dest, data, 0o644); err != nil {
 		return nil, fmt.Errorf("identity: store material: %w", err)
 	}
-	mat := Material{ID: id, Kind: kind, Name: name, Path: rel, AddedAt: time.Now().UTC()}
+	mat := Material{ID: id, Kind: kind, Role: role, Name: name, Path: rel, AddedAt: time.Now().UTC()}
 	m := p.manifest
 	m.Materials = append(m.Materials, mat)
+	if err := checkReferenceRoles(m.Materials); err != nil {
+		_ = os.Remove(dest)
+		return nil, err
+	}
 	if m.Identity.EntryKind == "" {
 		m.Identity.EntryKind = kind
 		m.Identity.EntryMaterialID = id
@@ -83,7 +199,7 @@ func (p *Package) addMaterial(kind, src, name string) (*Material, error) {
 		_ = os.Remove(dest)
 		return nil, err
 	}
-	p.log.Info("identity material added", "package", p.root, "kind", kind, "id", id, "path", rel)
+	p.log.Info("identity material added", "package", p.root, "kind", kind, "id", id, "path", rel, "role", role)
 	return &mat, nil
 }
 

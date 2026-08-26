@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "motionId": "e2541565-21bb-4058-8f3c-6593079cd19a",
+      "direction": "down",
+      "candidateId": "5537ccb9-2264-4faa-ab3e-197c98781e3d",
+      "acceptedAt": "2026-08-26T09:41:36Z",
+      "frameCount": 4
+    },
+    {
+      "motionId": "e2541565-21bb-4058-8f3c-6593079cd19a",
+      "direction": "up",
+      "candidateId": "d93747dc-7233-42cd-b51e-3984b5c1b5b9",
+      "acceptedAt": "2026-08-26T09:41:36Z",
+      "frameCount": 4
+    },
+    {
+      "motionId": "e2541565-21bb-4058-8f3c-6593079cd19a",
+      "direction": "right",
+      "candidateId": "e7212e04-afbc-40a4-8710-9be1e72a9de4",
+      "acceptedAt": "2026-08-26T09:41:36Z",
+      "frameCount": 4
+    }
+  ]
+}

@@ -1,0 +1,243 @@
+[
+  {
+    "id": "e2541565-21bb-4058-8f3c-6593079cd19a",
+    "name": "walk",
+    "strategy": {
+      "count": 4,
+      "mirror": true
+    },
+    "directions": [
+      {
+        "direction": "right",
+        "origin": "generated",
+        "sequence": {
+          "direction": "right",
+          "frames": [
+            {
+              "index": 0,
+              "assetRef": "candidate:e7212e04-afbc-40a4-8710-9be1e72a9de4:frame:0",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "assetRef": "candidate:e7212e04-afbc-40a4-8710-9be1e72a9de4:frame:1",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "assetRef": "candidate:e7212e04-afbc-40a4-8710-9be1e72a9de4:frame:2",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "assetRef": "candidate:e7212e04-afbc-40a4-8710-9be1e72a9de4:frame:3",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "direction": "up",
+        "origin": "generated",
+        "sequence": {
+          "direction": "up",
+          "frames": [
+            {
+              "index": 0,
+              "assetRef": "candidate:d93747dc-7233-42cd-b51e-3984b5c1b5b9:frame:0",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "assetRef": "candidate:d93747dc-7233-42cd-b51e-3984b5c1b5b9:frame:1",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "assetRef": "candidate:d93747dc-7233-42cd-b51e-3984b5c1b5b9:frame:2",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "assetRef": "candidate:d93747dc-7233-42cd-b51e-3984b5c1b5b9:frame:3",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "direction": "down",
+        "origin": "generated",
+        "sequence": {
+          "direction": "down",
+          "frames": [
+            {
+              "index": 0,
+              "assetRef": "candidate:5537ccb9-2264-4faa-ab3e-197c98781e3d:frame:0",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "assetRef": "candidate:5537ccb9-2264-4faa-ab3e-197c98781e3d:frame:1",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "assetRef": "candidate:5537ccb9-2264-4faa-ab3e-197c98781e3d:frame:2",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "assetRef": "candidate:5537ccb9-2264-4faa-ab3e-197c98781e3d:frame:3",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 16,
+                  "Y": 42
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "direction": "left",
+        "origin": "mirrored",
+        "source": "right",
+        "sequence": {
+          "direction": "left",
+          "frames": [
+            {
+              "index": 0,
+              "assetRef": "mirror:right:0",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 15,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 1,
+              "assetRef": "mirror:right:1",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 15,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 2,
+              "assetRef": "mirror:right:2",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 15,
+                  "Y": 42
+                }
+              ]
+            },
+            {
+              "index": 3,
+              "assetRef": "mirror:right:3",
+              "durationMs": 100,
+              "anchors": [
+                {
+                  "Name": "脚底",
+                  "X": 15,
+                  "Y": 42
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "createdAt": "2026-08-26T09:41:36.2061505Z",
+    "updatedAt": "2026-08-26T09:41:36.386564Z"
+  }
+]

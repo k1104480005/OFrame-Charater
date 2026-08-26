@@ -84,6 +84,12 @@ func CommitAppearanceRevision(p *identity.Package, reason string) (identity.Vers
 		return identity.VersionRecord{}, err
 	}
 	p.Logger().Info("identity appearance revision committed", "package", p.Root(), "version", created.ID, "reason", reason)
+	if _, err := Append(p, ActionVersionCommit, map[string]any{
+		"version": created.ID,
+		"reason":  reason,
+	}); err != nil {
+		return identity.VersionRecord{}, fmt.Errorf("version: record appearance revision in operation log: %w", err)
+	}
 	return created, nil
 }
 

@@ -1,0 +1,27 @@
+{
+  "name": "oframe-character-frontend",
+  "private": true,
+  "version": "0.2.0",
+  "description": "OFrame Character Workbench — React + TypeScript + PixiJS frontend (Wails v2)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "check:pixel-atlas": "node --experimental-strip-types scripts/pixelAtlasCheck.ts"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "pixi.js": "^8.20.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.6"
+  }
+}

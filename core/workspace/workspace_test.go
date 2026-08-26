@@ -113,7 +113,7 @@ func TestCopyRestore(t *testing.T) {
 	if err := os.WriteFile(refSrc, []byte("png"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	mat, err := pkg.AddReferenceImage(refSrc, "ref.png")
+	mat, err := pkg.AddReferenceImage(refSrc, "ref.png", identity.RoleMainReference)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,52 @@
+{
+  "frames": [
+    {
+      "file": "frame_000.png",
+      "width": 32,
+      "height": 32,
+      "anchors": [
+        {
+          "Name": "脚底",
+          "X": 16,
+          "Y": 42
+        }
+      ]
+    },
+    {
+      "file": "frame_001.png",
+      "width": 32,
+      "height": 32,
+      "anchors": [
+        {
+          "Name": "脚底",
+          "X": 16,
+          "Y": 42
+        }
+      ]
+    },
+    {
+      "file": "frame_002.png",
+      "width": 32,
+      "height": 32,
+      "anchors": [
+        {
+          "Name": "脚底",
+          "X": 16,
+          "Y": 42
+        }
+      ]
+    },
+    {
+      "file": "frame_003.png",
+      "width": 32,
+      "height": 32,
+      "anchors": [
+        {
+          "Name": "脚底",
+          "X": 16,
+          "Y": 42
+        }
+      ]
+    }
+  ]
+}

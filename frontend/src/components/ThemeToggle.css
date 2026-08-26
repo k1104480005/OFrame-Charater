@@ -1,0 +1,9 @@
+.theme-toggle {
+  min-width: 96px;
+  justify-content: center;
+}
+
+.theme-toggle__icon {
+  font-size: 12px;
+  line-height: 1;
+}
