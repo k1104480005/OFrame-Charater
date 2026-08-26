@@ -75,6 +75,7 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 - **测试风格**：确定性合成图像测试，禁止依赖真实网络/付费 API；用 fake transport；`go test -count=1 ./...` 为准。
 - **Windows 保留文件名**：测试文件不要用 `aux.*` 等保留名。
 - **打包环境坑（仍在）**：`wails build` 内部 vite 清理 `frontend/dist` 会撞本机 safe-delete 垫片。可靠做法：**前台**执行 `rm -rf frontend/dist && npm run build`（或 vite 输出到临时目录再 `cp -r`），然后 `wails build -s -m -webview2 browser`（-s 跳过前端构建，避免 WebView2 下载）。
+- **⚠️ 本机 git 陷阱：不要用 `git rm`**。实测 `git rm docs/screenshots/xxx.png` 会连带删除**整个 `docs/` 目录**（原因未明，疑似沙箱对 git 删除的拦截）。删除文件一律用普通 `rm <file>` + `git add -A` 暂存删除；`git rm --cached`（仅移出索引）可用。
 - **改动规范**：先读 spec → 实现 → 更新 `tasks.md` 勾选 → 运行 gofmt/go test/go vet/前端 typecheck/build/wails build。不要虚标完成。
 
 ## 6. 关键文件索引（按模块）
