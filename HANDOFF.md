@@ -64,7 +64,7 @@ wails generate module    已执行，绑定已重新生成
 
 ### 4.2 剩余未勾选任务（68 项中余 1 项）
 
-- **13.4** 发布公开 Beta：NSIS 安装包 + 便携版构建已通过（1.3），示例资产（examples/hero-walk）与教程（docs/example-walkthrough.md）已可验证全流程；剩「外部用户可完成一个完整角色资产」实际验证与发布渠道决策（如 GitHub Release / 网盘 / 官网）。
+- **13.4** 发布公开 Beta：NSIS 安装包 + 便携版构建已通过（1.3），示例资产（examples/hero-walk）与教程、**人工测试清单（docs/manual-test-checklist.md，A 无密钥全流程 / B 真实密钥生成 / C 边界恢复）**已就绪；剩「外部用户可完成一个完整角色资产」**人工验收**与发布渠道决策（用户当前进行中）。
 
 ## 5. 工程注意事项
 
