@@ -100,3 +100,10 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 ## 7. 交接完成定义
 
 新 AI 读完本文档 + 必读文件后，应能回答：当前任务进度、下一步任务、方向口径、验收规则、导出接线缺失点、验证命令、git 推送方式。从「人工验收（13.4，docs/manual-test-checklist.md）」与后续增强开始即可继续，无需重新规划。
+
+## 8. 2026-08-26 会话要点速查（接手者先看）
+
+- **动森皮肤来源**：参考 `D:\GitProject\animal-island-ui`（npm 包：`node_modules/animal-island-ui/dist/index.css` + `@fontsource/nunito`）。Nunito latin 400/500/600/700/800 woff2（共 ~80KB）已拷贝进 `frontend/src/assets/fonts/nunito/`，`frontend/src/styles/fonts.css` 定义 @font-face，**离线可用**；中文回退系统字体（Noto Sans SC 完整包 76M，未打包）。
+- **新绑定签名（按路径，启动页场景包未打开）**：`PackageCreate(name, category)`、`IdentityRename(path, name)`、`IdentitySetCategory(path, category)`、`PackageDelete(path)`。身份包分类/改名/删除均为 **manifest 级（目录路径永不变）**；删除 = 移到 `<workspace>/.trash/<名>-<时间戳>`（可手动找回，非物理删除）。
+- **前端交互约定**：所有确认弹窗用 `components/ConfirmModal.tsx`（勿用原生 window.confirm）；卡片拖拽改分类（HTML5 DnD）、分类右键删除、点卡片名字改名、自定义分类下拉（勿用原生 select）。
+- **留待后续（已知未做）**：多语言 i18n（已评估放弃）、Noto Sans SC 打包、卡片真实缩略图（当前为波点纹理 + 首字母占位，`launch__thumb` 已留位置）、分类重命名、13.4 发布。
