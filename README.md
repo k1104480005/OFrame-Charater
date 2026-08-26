@@ -152,4 +152,4 @@ wails build -nsis       # 另产出 NSIS 安装包（需 makensis 在 PATH）
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 k1104480005
+[MIT](LICENSE) — Copyright (c) 2026 康坤涛 (k1104480005)
