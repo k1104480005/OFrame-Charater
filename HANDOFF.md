@@ -1,6 +1,6 @@
 # OFrameCharacter 开发交接文档
 
-> 生成时间：2026-08（阶段 7 完成，阶段 8 进行中）
+> 生成时间：2026-08-26（UI 全面翻新已完成并推送 GitHub；唯一剩余 13.4 发布人工验收）
 > 用途：让另一位 AI 在不依赖原会话的情况下继续开发本项目。
 
 ## 0. 项目一句话
@@ -20,29 +20,29 @@
 
 OpenSpec 工作流：用 `openspec status --change build-oframe-character-workbench --json`、`openspec instructions apply --change ... --json` 读取上下文；不要跳过 spec 直接写实现。
 
-## 2. 当前进度（切换时的准确状态）
+## 2. 当前进度（交接时准确状态）
 
-- **任务进度：67/68 勾选完成**。
-- 已完成阶段：P0 骨架 → 阶段1 Go核心/工作区 → 阶段2 Wails+React/PixiJS → 阶段3 身份候选+Provider → 阶段4 确定性图像管线 → 阶段5 动作与方向集 → 阶段6 任务队列+验收+版本化 → 阶段7 轻量编辑 → 阶段8 导出与 CLI（Go 侧 + 前端接线 + CLI 命令与测试均完成）+ 13.2 用户/CLI 文档 + 1.3 Windows 打包冒烟 + 13.1 示例资产与教程 + 13.3 性能优化。
-- 阶段 8（导出与 CLI）**全部接通**：ExportTab 真实导出界面、client.ts 导出绑定、设置面板外观主题、CLI generation/validate/export 命令 + 双端一致性回归。
-- **1.3 完成**：便携版 `build/bin/OFrameCharacterWorkbench.exe`（启动冒烟通过）+ NSIS 安装包 `build/bin/oframe-character-workbench-amd64-installer.exe` 均已产出。NSIS 3.12 免安装版已装到 `%LOCALAPPDATA%\Programs\nsis-3.12` 并加入用户 PATH。
-- **全量回归（65/68 时执行）全绿**：gofmt / go vet / go test ./...（16 包）/ 前端 typecheck+build / 绑定重生成 / 打包产物 / CLI 实机冒烟。期间修复：CLI 帮助文本与文档的参数顺序（标志必须在位置参数前）；新增 `identity canvas --width --height <pkg>` 子命令（CLI 创建的身份包无逻辑画布、生成前置必需）。
-- **13.1 完成**：`cmd/examplegen`（合成 filmstrip、零付费 API）产出 `examples/hero-walk` 身份包 + `examples/hero-exports/{generic,godot}` 导出包；教程 `docs/example-walkthrough.md`；测试 `cmd/examplegen/main_test.go`。
-- **13.3 完成**：`PixelCanvas` 纹理图集（单纹理 + 子区域视图）、静态/动态分层（tick 不再重建舞台/重复解码）、降级缩放（像素预算限幅 + data-degraded）；纯函数 `frontend/src/components/pixelAtlas.ts`，校验脚本 `frontend/scripts/pixelAtlasCheck.ts`（`npm run check:pixel-atlas`，12 断言）。打包产物已含新前端（17:46 重建 + 启动冒烟通过）。
-- **重要变更**：`core/export` 包已重命名为 `core/assetexport`（原包名 `export` 在 Wails 生成的 TS 绑定中产生 `export namespace export`，与 TS 保留字冲突导致前端无法编译；`wails generate module` 已重新生成绑定）。
-- **重要变更 2**：CLI `generation` 新增 `--motion` 标志（批量生成落到具体动作，否则候选无 motionId 无法导出）；CLI `export create/history` 新增 `--settings-dir`；`validate` 命令按 `identity.name` 区分身份包与导出包（两者都叫 manifest.json）。
-- **打包环境注意**：`wails build` 内部 vite 清理 `frontend/dist` 会撞本机 safe-delete 垫片（trash 失败）；解法是先 `rm -rf frontend/dist` + `npm run build`，再 `wails build -s -m -webview2 browser`（跳过前端构建、避免 WebView2 下载）。
+- **任务进度：67/68 勾选完成**，唯一剩余 **13.4 发布公开 Beta**（人工验收 + 发布渠道，非阻塞）。
+- 全部开发阶段已完成：P0 骨架 → 阶段1 Go核心/工作区 → 阶段2 Wails+React/PixiJS → 阶段3 身份候选+Provider → 阶段4 确定性图像管线 → 阶段5 动作与方向集 → 阶段6 任务队列+验收+版本化 → 阶段7 轻量编辑 → 阶段8 导出与 CLI + 13.1 示例 / 13.2 文档 / 13.3 性能 / 1.3 打包。
+- **最近一轮（2026-08-26）UI 全面翻新，已提交并推送 GitHub（commit `c4a4830`）**：
+  - **动森风格皮肤**（参考 `D:\GitProject\animal-island-ui` 组件库）：暖米白/棕/薄荷绿双主题、药丸圆角、3D 按下阴影、波点纹理背景、Nunito 字体**本地打包**（离线可用，`frontend/src/styles/fonts.css`）、自定义 Switch、弹窗 pop 动效；洋红仍仅限抠图检查视图。
+  - **启动页 v2**：右上角「＋创建 / 工作区」弹窗；身份包**卡片网格**（缩略图占位 + 创建/修改时间）；左侧**分类栏**（全部 / 未分类 / 自定义，可新建分类；**拖拽卡片到分类改分类**，**右键删除分类**自动归未分类）；自定义动森分类下拉；卡片点名字改名、右上角红 ✕ 删除（动森 ConfirmModal 确认 → 移到工作区 `.trash`）。
+  - **工作区**：浏览文件夹（原生对话框）、切换记忆、迁移（切换时询问是否移动包）。
+  - **身份包元数据**：新增 `category`（≤32 字符，空=未分类）与 `createdAt/updatedAt`；`PackageCreate(name, category)` 创建即分类；改名 = manifest 级显示名（**目录路径不变**）。
+  - **统一确认弹窗** `frontend/src/components/ConfirmModal.tsx`（替代原生 window.confirm）。
+  - 修正「身分包→身份包」错别字 9 处。
+- **git 状态**：已推送 GitHub（默认分支 master，最新 `c4a4830`），工作区干净。
 
 ### 最近一次验证结果（全绿）
 
 ```text
-gofmt -l .          无输出
-go test -count=1 ./...   全部通过（含 core/edit、core/export）
-go vet ./...        无输出
-wails generate module    已执行，绑定已重新生成
+gofmt -l .           无输出
+go vet ./...         无输出
+go test -count=1 ./...   17 包全部通过
+npm run typecheck    通过
+npm run build        通过
+wails build -s -m -webview2 browser  通过（便携版已产出）
 ```
-
-> 注：项目当前未完成 git 提交，工作区有大量未提交文件，切换后先看 `git status`。
 
 ## 3. 架构与关键决策（接手者必须知道）
 
@@ -69,30 +69,33 @@ wails generate module    已执行，绑定已重新生成
 ## 5. 工程注意事项
 
 - **Windows 环境**：本机 Windows 10 build 19041。Go 1.26.4 + `powershell.exe` 5.1 正常；若遇到 `Your Windows doesn't fully support CET`，是 Harness 的 `pwsh.exe` 启动器问题，不是项目问题，不要改 `go.mod` 掩盖。
-- **网络受限**：Go module proxy 不可达；依赖需走本地 module cache（`GOPROXY=off GOSUMDB=off`）或 goproxy.cn。不要新增依赖；`modernc.org/sqlite` 已可用。
-- **不要碰的确认过的决策**：方向口径（5+3 镜像）、默认单方向 down、验收阈值 0.7、密钥本地明文存储、filmstrip 一次生成、每方向最多 3 次尝试、不做骨骼/多轨/完整绘画/云同步/MCP。
+- **网络受限（重要）**：Go module proxy、npm registry、Google Fonts 均不可达 → 依赖只能走本地缓存（`GOPROXY=off GOSUMDB=off`），**不要新增 npm/go 依赖**（Nunito 字体已本地打包，无需联网）。SourceForge 可达（装 NSIS 时验证过）。
+- **git push 需代理**：仓库级已配置 `http.proxy socks5h://127.0.0.1:7890`（用户 VPN 为 Clash 系代理模式；VPN 开着才能推）。推送方式：`git push -u https://<user>:<TOKEN>@github.com/k1104480005/OFrame-Charater.git master`（用户保留经典令牌，repo 权限），推完 `git remote set-url origin https://github.com/...` 还原为无令牌地址 + 修正 `branch.master.remote=origin`。
+- **不要碰的确认过的决策**：方向口径（5+3 镜像）、默认单方向 down、验收阈值 0.7、密钥本地明文存储、filmstrip 一次生成、每方向最多 3 次尝试、不做骨骼/多轨/完整绘画/云同步/MCP、不做多语言（i18n 已评估放弃：前端 16/18 文件硬编码中文 + Go 报错 13 条中文，npm 不可达装不了库）。
 - **测试风格**：确定性合成图像测试，禁止依赖真实网络/付费 API；用 fake transport；`go test -count=1 ./...` 为准。
 - **Windows 保留文件名**：测试文件不要用 `aux.*` 等保留名。
+- **打包环境坑（仍在）**：`wails build` 内部 vite 清理 `frontend/dist` 会撞本机 safe-delete 垫片。可靠做法：**前台**执行 `rm -rf frontend/dist && npm run build`（或 vite 输出到临时目录再 `cp -r`），然后 `wails build -s -m -webview2 browser`（-s 跳过前端构建，避免 WebView2 下载）。
 - **改动规范**：先读 spec → 实现 → 更新 `tasks.md` 勾选 → 运行 gofmt/go test/go vet/前端 typecheck/build/wails build。不要虚标完成。
 
 ## 6. 关键文件索引（按模块）
 
 | 模块 | 文件 |
 |---|---|
-| 身份包 | `core/identity/`（package/manifest/definition/canvas/anchors） |
+| 身份包 | `core/identity/`（package/manifest/definition/canvas/anchors；`SetName`/`SetCategory` 在 definition.go） |
+| 工作区 | `core/workspace/`（workspace/config.go 新增：切换记忆/迁移；`TrashPackage` 移到 `.trash`） |
 | 动作/方向集 | `core/motion/`（motion/mirror/store） |
 | 图像管线 | `core/pipeline/`（filmstrip/slice/keying/align/palette/grid/quality/candidate/process） |
 | Provider | `core/provider/`（provider/registry/config/retry/doubao/openai/agnes/http/stats） |
 | 任务队列 | `core/task/`（task/store）+ `core/store/`（migrations） |
 | 设置 | `core/settings/` |
-| 编辑 | `core/edit/`（本次新增 edit.go/edit_test.go） |
-| 导出 | `core/assetexport/`（export.go/export_test.go）+ `core/service/export.go` + 根 `export.go` |
-| 服务层 | `core/service/`（service/generation/acceptance/queue/motion/export） |
+| 编辑 | `core/edit/` + `core/service/edit.go` + `edit_bindings.go` |
+| 导出 | `core/assetexport/` + `core/service/export.go` + 根 `export.go` |
+| 服务层 | `core/service/`（service/generation/acceptance/queue/motion/export/edit） |
 | 版本化 | `core/version/`（version/assets/acceptance/log/rollback） |
 | CLI | `cmd/oframe/`（main/export/provider/generation/service） |
 | Wails 壳 | 根目录 `main.go`/`app.go`/`bindings.go`/`tasks.go`/`generation.go`/`motion.go`/`export.go` |
-| 前端 | `frontend/src/`（pages: LaunchPage/MainScreen/ExportTab/AcceptanceTab/make/*；api/client.ts；wailsjs 已重新生成） |
+| 前端 | `frontend/src/`（pages: LaunchPage v2/MainScreen/ExportTab/AcceptanceTab/make/*；components: ConfirmModal/PixelCanvas/pixelAtlas/ThemeToggle/SettingsPanel/TaskDrawer；styles: tokens/global/fonts.css；api/client.ts） |
 
 ## 7. 交接完成定义
 
-新 AI 读完本文档 + 必读文件后，应能回答：当前任务进度、下一步任务、方向口径、验收规则、导出接线缺失点、验证命令。从「4.1 前端接线」开始即可继续，无需重新规划。
+新 AI 读完本文档 + 必读文件后，应能回答：当前任务进度、下一步任务、方向口径、验收规则、导出接线缺失点、验证命令、git 推送方式。从「人工验收（13.4，docs/manual-test-checklist.md）」与后续增强开始即可继续，无需重新规划。
