@@ -91,8 +91,16 @@ func TestIdentityCanvasCommand(t *testing.T) {
 	}
 	pkg := created["path"].(string)
 
+	// 人工验收更新: generation planning requires a configured provider — make
+	// the test hermetic with a temp settings dir + doubao instead of relying
+	// on the developer's real settings.
+	settingsDir := filepath.Join(t.TempDir(), "cfg")
+	if _, _, err := runCLI(t, "provider", "config", "set", "--key", "ark-canvas", "--settings-dir", settingsDir, "doubao"); err != nil {
+		t.Fatal(err)
+	}
+
 	// Without a canvas, generation planning is refused (前置条件).
-	if _, _, err := runCLI(t, "generation", "plan", "--directions", "1", pkg, "--json"); err == nil ||
+	if _, _, err := runCLI(t, "generation", "plan", "--directions", "1", "--settings-dir", settingsDir, pkg, "--json"); err == nil ||
 		!strings.Contains(err.Error(), "logical canvas must be set") {
 		t.Fatalf("generation plan without canvas should fail with the canvas prerequisite, got %v", err)
 	}
@@ -106,7 +114,7 @@ func TestIdentityCanvasCommand(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &cres); err != nil || cres["ok"] != true {
 		t.Fatalf("canvas result: %v\n%s", cres, out)
 	}
-	out, _, err = runCLI(t, "generation", "plan", "--directions", "4", pkg, "--json")
+	out, _, err = runCLI(t, "generation", "plan", "--directions", "4", "--settings-dir", settingsDir, pkg, "--json")
 	if err != nil {
 		t.Fatalf("generation plan after canvas: %v\n%s", err, out)
 	}
@@ -337,10 +345,9 @@ func TestCLIAndServiceConsistency(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = svc.Close() }()
-	cfg, err := svc.ProviderConfig(provider.ProviderDoubao)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Fresh stores carry no provider cards (人工验收更新) — seed doubao from
+	// its built-in defaults; SaveProviderConfig registers it on demand.
+	cfg := provider.DefaultConfig(provider.ProviderDoubao)
 	cfg.APIKey = "ark-test"
 	if err := svc.SaveProviderConfig(provider.ProviderDoubao, cfg); err != nil {
 		t.Fatal(err)

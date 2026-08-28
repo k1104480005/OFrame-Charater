@@ -657,6 +657,20 @@ export namespace main {
 	        this.logSeq = source["logSeq"];
 	    }
 	}
+	export class EnhanceSettingsView {
+	    providerId: string;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EnhanceSettingsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerId = source["providerId"];
+	        this.model = source["model"];
+	    }
+	}
 	
 	export class PromptSnapshotView {
 	    stylePresetId: string;
@@ -713,7 +727,9 @@ export namespace main {
 	    kind: string;
 	    motionId?: string;
 	    providerId: string;
+	    providerType?: string;
 	    model: string;
+	    capability: string;
 	    directions: number;
 	    basicDirections: number;
 	    mirroredDirections: number;
@@ -741,7 +757,9 @@ export namespace main {
 	        this.kind = source["kind"];
 	        this.motionId = source["motionId"];
 	        this.providerId = source["providerId"];
+	        this.providerType = source["providerType"];
 	        this.model = source["model"];
+	        this.capability = source["capability"];
 	        this.directions = source["directions"];
 	        this.basicDirections = source["basicDirections"];
 	        this.mirroredDirections = source["mirroredDirections"];
@@ -1092,13 +1110,27 @@ export namespace main {
 	
 	export class ProviderConfigView {
 	    providerId: string;
+	    type: string;
+	    name: string;
 	    apiKey: string;
 	    model: string;
+	    videoModel: string;
 	    textModel: string;
+	    imageModels?: string[];
+	    videoModels?: string[];
+	    textModels?: string[];
 	    baseUrl: string;
+	    defaultSize?: string;
 	    maxAttempts: number;
 	    timeoutSec: number;
 	    pricePerCall: number;
+	    cliCommand?: string;
+	    cliPromptArg?: string;
+	    cliOutputArg?: string;
+	    cliModelArg?: string;
+	    cliRefImageArg?: string;
+	    cliExtraArgs?: string[];
+	    cliTemplate?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProviderConfigView(source);
@@ -1107,23 +1139,44 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.providerId = source["providerId"];
+	        this.type = source["type"];
+	        this.name = source["name"];
 	        this.apiKey = source["apiKey"];
 	        this.model = source["model"];
+	        this.videoModel = source["videoModel"];
 	        this.textModel = source["textModel"];
+	        this.imageModels = source["imageModels"];
+	        this.videoModels = source["videoModels"];
+	        this.textModels = source["textModels"];
 	        this.baseUrl = source["baseUrl"];
+	        this.defaultSize = source["defaultSize"];
 	        this.maxAttempts = source["maxAttempts"];
 	        this.timeoutSec = source["timeoutSec"];
 	        this.pricePerCall = source["pricePerCall"];
+	        this.cliCommand = source["cliCommand"];
+	        this.cliPromptArg = source["cliPromptArg"];
+	        this.cliOutputArg = source["cliOutputArg"];
+	        this.cliModelArg = source["cliModelArg"];
+	        this.cliRefImageArg = source["cliRefImageArg"];
+	        this.cliExtraArgs = source["cliExtraArgs"];
+	        this.cliTemplate = source["cliTemplate"];
 	    }
 	}
 	export class ProviderInfoView {
 	    id: string;
+	    type: string;
 	    name: string;
+	    builtin: boolean;
 	    active: boolean;
 	    image: boolean;
+	    video: boolean;
 	    text: boolean;
 	    imageModel: string;
+	    videoModel: string;
 	    textModel: string;
+	    imageModels: string[];
+	    videoModels: string[];
+	    textModels: string[];
 	    baseUrl: string;
 	    hasApiKey: boolean;
 	    keySource: string;
@@ -1138,18 +1191,103 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
+	        this.type = source["type"];
 	        this.name = source["name"];
+	        this.builtin = source["builtin"];
 	        this.active = source["active"];
 	        this.image = source["image"];
+	        this.video = source["video"];
 	        this.text = source["text"];
 	        this.imageModel = source["imageModel"];
+	        this.videoModel = source["videoModel"];
 	        this.textModel = source["textModel"];
+	        this.imageModels = source["imageModels"];
+	        this.videoModels = source["videoModels"];
+	        this.textModels = source["textModels"];
 	        this.baseUrl = source["baseUrl"];
 	        this.hasApiKey = source["hasApiKey"];
 	        this.keySource = source["keySource"];
 	        this.maxAttempts = source["maxAttempts"];
 	        this.pricePerCall = source["pricePerCall"];
 	        this.currency = source["currency"];
+	    }
+	}
+	export class ProviderOptionView {
+	    id: string;
+	    name: string;
+	    type: string;
+	    models: string[];
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProviderOptionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.models = source["models"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class ProviderPresetView {
+	    key: string;
+	    name: string;
+	    description: string;
+	    type: string;
+	    baseUrl: string;
+	    image: boolean;
+	    video: boolean;
+	    text: boolean;
+	    imageModels: string[];
+	    videoModels: string[];
+	    textModels: string[];
+	    cliPromptArg?: string;
+	    cliOutputArg?: string;
+	    cliModelArg?: string;
+	    cliRefImageArg?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProviderPresetView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.type = source["type"];
+	        this.baseUrl = source["baseUrl"];
+	        this.image = source["image"];
+	        this.video = source["video"];
+	        this.text = source["text"];
+	        this.imageModels = source["imageModels"];
+	        this.videoModels = source["videoModels"];
+	        this.textModels = source["textModels"];
+	        this.cliPromptArg = source["cliPromptArg"];
+	        this.cliOutputArg = source["cliOutputArg"];
+	        this.cliModelArg = source["cliModelArg"];
+	        this.cliRefImageArg = source["cliRefImageArg"];
+	    }
+	}
+	export class ProviderTestView {
+	    ok: boolean;
+	    latencyMs?: number;
+	    models?: string[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProviderTestView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.latencyMs = source["latencyMs"];
+	        this.models = source["models"];
+	        this.error = source["error"];
 	    }
 	}
 	export class StatView {
@@ -1235,6 +1373,26 @@ export namespace main {
 	    }
 	}
 	
+	export class VideoExtractionConfigView {
+	    providerId: string;
+	    type: string;
+	    videoModels: string[];
+	    supported: boolean;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VideoExtractionConfigView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerId = source["providerId"];
+	        this.type = source["type"];
+	        this.videoModels = source["videoModels"];
+	        this.supported = source["supported"];
+	        this.reason = source["reason"];
+	    }
+	}
 	export class WorkspaceInfo {
 	    path: string;
 	    packageCount: number;

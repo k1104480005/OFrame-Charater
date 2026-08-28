@@ -11,6 +11,18 @@ import (
 	"strings"
 )
 
+// Shared response-size caps for the OpenAI-compatible endpoints (task 2.1:
+// 统一认证、超时、响应大小限制和错误解析). Generated-image payloads arrive as
+// base64 inside JSON and are large; model catalogs are small lists. Both caps
+// stop runaway vendor responses from exhausting memory instead of dying with
+// an unreadable decoder failure. They are variables only so the fake-transport
+// tests can exercise the boundary with tiny payloads; production keeps the
+// defaults below.
+var (
+	maxGenerationResponseBytes = int64(64 << 20) // images/generations + chat/completions
+	maxModelListBytes          = int64(8 << 20)  // GET /models catalog
+)
+
 // The adapters speak the OpenAI-compatible images/generations and
 // chat/completions contracts. Reference images are attached as the
 // vendor-extension field "reference_images" (base64 data URLs); the exact
@@ -39,33 +51,124 @@ type chatResponse struct {
 	Error *apiError `json:"error"`
 }
 
+// apiErrorMessage extracts the vendor-provided error message from an
+// OpenAI-compatible "error":{"message":…} envelope when one is present.
+func apiErrorMessage(raw []byte) (string, bool) {
+	var env struct {
+		Error *apiError `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return "", false
+	}
+	if env.Error == nil || env.Error.Message == "" {
+		return "", false
+	}
+	return strings.TrimSpace(env.Error.Message), true
+}
+
+// redactSecret removes every occurrence of secret from s. Vendor bodies are
+// echoed into user-facing errors in truncated form, so a service reflecting
+// the Authorization header back must never leak the key through them.
+func redactSecret(s, secret string) string {
+	if secret == "" || !strings.Contains(s, secret) {
+		return s
+	}
+	return strings.ReplaceAll(s, secret, "***")
+}
+
+// non2xxDetail builds the readable detail line of a non-2xx response: the
+// vendor's envelope message when present, otherwise a truncated echo of the
+// body, or a placeholder when the body is empty. The API key is redacted in
+// either case (errors stay readable without leaking credentials).
+func non2xxDetail(raw []byte, apiKey string) string {
+	if msg, ok := apiErrorMessage(raw); ok {
+		return redactSecret(msg, apiKey)
+	}
+	if s := strings.TrimSpace(string(raw)); s != "" {
+		return truncate(redactSecret(s, apiKey), 300)
+	}
+	return "(no response body)"
+}
+
+// isAuthStatus reports whether a status is a credential problem (marked
+// not-retryable: retrying cannot fix a wrong or missing key).
+func isAuthStatus(statusCode int) bool {
+	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
+}
+
+// readCappedBody reads at most maxBytes of r. Reading one byte beyond the cap
+// turns a silently-truncated payload (which would later fail as
+// "unexpected end of JSON input") into an immediate, readable size-limit error.
+func readCappedBody(r io.Reader, maxBytes int64, kind string) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > maxBytes {
+		return nil, fmt.Errorf("%s response too large (over %d MiB)", kind, maxBytes>>20)
+	}
+	return raw, nil
+}
+
+// newAuthedRequest builds an authenticated provider request (统一认证): the
+// Bearer header on every call, JSON content type only when a body is sent,
+// and Accept: application/json always.
+func newAuthedRequest(ctx context.Context, method, url, apiKey string, jsonBody []byte) (*http.Request, error) {
+	var rdr io.Reader
+	if jsonBody != nil {
+		rdr = bytes.NewReader(jsonBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, rdr)
+	if err != nil {
+		return nil, fmt.Errorf("provider: build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Accept", "application/json")
+	if jsonBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
+// sendAPI performs one authenticated provider request and returns the
+// size-capped body plus the status code. Transport failures, response-size
+// enforcement and header handling live here so every OpenAI-compatible call
+// behaves identically (design D4: shared helpers own auth/response caps;
+// adapters own endpoints, bodies and parsing).
+func sendAPI(ctx context.Context, client *http.Client, method, url, apiKey string, jsonBody []byte, maxBytes int64, kind string) ([]byte, int, error) {
+	req, err := newAuthedRequest(ctx, method, url, apiKey, jsonBody)
+	if err != nil {
+		return nil, 0, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("provider: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := readCappedBody(resp.Body, maxBytes, kind)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("provider: read %s response: %w", kind, err)
+	}
+	return raw, resp.StatusCode, nil
+}
+
 // postJSON performs an authenticated JSON POST and returns the raw response
-// body. HTTP 401/403 are marked not-retryable.
+// body. HTTP 401/403 are marked not-retryable; other non-2xx responses carry
+// the vendor error message (envelope preferred over a body dump).
 func postJSON(ctx context.Context, client *http.Client, url, apiKey string, body any) ([]byte, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("provider: encode request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	raw, status, err := sendAPI(ctx, client, http.MethodPost, url, apiKey, data, maxGenerationResponseBytes, "generation")
 	if err != nil {
-		return nil, fmt.Errorf("provider: build request: %w", err)
+		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("provider: request failed: %w", err)
+	if isAuthStatus(status) {
+		return nil, MarkNotRetryable(fmt.Errorf("provider: auth failed (HTTP %d): %s", status, non2xxDetail(raw, apiKey)))
 	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
-	if err != nil {
-		return nil, fmt.Errorf("provider: read response: %w", err)
-	}
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, MarkNotRetryable(fmt.Errorf("provider: auth failed (HTTP %d): %s", resp.StatusCode, truncate(string(raw), 200)))
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("provider: unexpected status %d: %s", resp.StatusCode, truncate(string(raw), 300))
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("provider: unexpected status %d: %s", status, non2xxDetail(raw, apiKey))
 	}
 	return raw, nil
 }
@@ -119,6 +222,9 @@ func imagesGenerations(ctx context.Context, client *http.Client, baseURL, apiKey
 		}
 		return data, "image/png", nil
 	case item.URL != "":
+		// Fetch the generated image from the vendor's CDN. The Bearer key is
+		// deliberately NOT attached: arbitrary URLs must never receive the
+		// credential. The download honors the same size cap.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL, nil)
 		if err != nil {
 			return nil, "", err
@@ -131,9 +237,9 @@ func imagesGenerations(ctx context.Context, client *http.Client, baseURL, apiKey
 		if resp.StatusCode != http.StatusOK {
 			return nil, "", fmt.Errorf("provider: fetch image url: HTTP %d", resp.StatusCode)
 		}
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+		data, err := readCappedBody(resp.Body, maxGenerationResponseBytes, "fetched image")
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("provider: fetch image url: %w", err)
 		}
 		return data, resp.Header.Get("Content-Type"), nil
 	}
@@ -162,7 +268,11 @@ func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKe
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("provider: chat response has no choices")
 	}
-	return out.Choices[0].Message.Content, nil
+	content := out.Choices[0].Message.Content
+	if content == "" {
+		return "", fmt.Errorf("provider: chat response choice has no content")
+	}
+	return content, nil
 }
 
 func mimeOr(m string) string {

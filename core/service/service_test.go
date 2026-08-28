@@ -107,8 +107,32 @@ func newTestService(t *testing.T, client *http.Client) (*Service, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Most service tests exercise flows that assume the classic built-in trio
+	// (doubao default primary + two fallbacks). Fresh installs start EMPTY
+	// since the 人工验收 update, so tests seed the trio explicitly.
+	if err := seedBuiltinProviders(svc); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { _ = svc.Close() })
 	return svc, dir
+}
+
+// seedBuiltinProviders writes the classic doubao/openai/agnes trio into the
+// store and rebuilds the registry from it. Fresh installs start with NO
+// provider cards (人工验收更新: 不固定预置 3 个内置 Provider) — tests that
+// need a pre-configured doubao call this explicitly.
+func seedBuiltinProviders(svc *Service) error {
+	ps := svc.settings.ProviderSettings()
+	ps.Providers = map[string]provider.ProviderConfig{
+		provider.ProviderDoubao: provider.DefaultConfig(provider.ProviderDoubao),
+		provider.ProviderOpenAI: provider.DefaultConfig(provider.ProviderOpenAI),
+		provider.ProviderAgnes:  provider.DefaultConfig(provider.ProviderAgnes),
+	}
+	ps.ActiveProvider = provider.DefaultProviderID
+	if err := svc.settings.SaveProviderSettings(ps); err != nil {
+		return err
+	}
+	return svc.rebuildRegistry()
 }
 
 // newTestPackage creates a ready identity package: canvas set, one main
@@ -175,6 +199,9 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 	// 默认路由 Doubao (首次生成默认).
 	if plan.ProviderID != provider.ProviderDoubao || plan.Model != provider.DefaultDoubaoModel {
 		t.Fatalf("default provider: %s/%s", plan.ProviderID, plan.Model)
+	}
+	if plan.Capability != provider.ModalityImage.String() {
+		t.Fatalf("generation capability = %q, want image", plan.Capability)
 	}
 	// 外发素材 = 主 + 辅助参考图.
 	if len(plan.OutboundMaterials) != 2 {

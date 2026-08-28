@@ -1,9 +1,18 @@
-// 制作 > 动作 sub-page（阶段 5：动作/方向集真实绑定）。创建/选择动作、方向策略
+// 制作 > 动作 sub-page（阶段 5：动作/方向集真实绑定；任务 6.1/6.3：生成入口接入
+// 能力筛选的 Provider/模型选择器，确认面板展示协议/能力）。创建/选择动作、方向策略
 // （单方向 / 4 / 8 自动镜像 / 关闭镜像）、filmstrip 生成（生成确认 → 队列任务，
 // 进度见全局任务抽屉）、方向集帧数与节奏展示。
 import { useCallback, useEffect, useState } from "react";
-import type { GenerationPlanView, MotionView } from "../../api/client";
-import { confirmGeneration, createMotion, fetchMotions, prepareGeneration, setMotionFrameDurations, setMotionStrategy } from "../../api/client";
+import type { GenerationPlanView, MotionView, ProviderOptionView } from "../../api/client";
+import {
+  confirmGeneration,
+  createMotion,
+  fetchMotions,
+  fetchProviderOptions,
+  prepareGeneration,
+  setMotionFrameDurations,
+  setMotionStrategy,
+} from "../../api/client";
 import { useSession } from "../../state/SessionContext";
 
 const STRATEGY_LABEL: Record<string, string> = {
@@ -25,10 +34,16 @@ export function MotionPage() {
   const [error, setError] = useState<string | null>(null);
   const [tempo, setTempo] = useState<number[]>([]);
   const [tempoDir, setTempoDir] = useState("");
+  // 任务 6.1：能力筛选后的 Provider/模型选择（空 = 跟随当前 provider 默认）
+  const [imageOptions, setImageOptions] = useState<ProviderOptionView[]>([]);
+  const [providerChoice, setProviderChoice] = useState("");
+  const [modelChoice, setModelChoice] = useState("");
 
   const refresh = useCallback(async () => {
     try {
-      setMotions(await fetchMotions());
+      const [ms, opts] = await Promise.all([fetchMotions(), fetchProviderOptions("image").catch(() => [])]);
+      setMotions(ms);
+      setImageOptions(opts);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -76,8 +91,8 @@ export function MotionPage() {
       const p = await prepareGeneration({
         packagePath: "",
         motionId,
-        providerId: "",
-        model: "",
+        providerId: providerChoice,
+        model: modelChoice,
         directions: 0,
         stylePresetId: "",
         actionPresetId: "",
@@ -184,15 +199,57 @@ export function MotionPage() {
       <section>
         <h4 className="mono">filmstrip 生成（生成确认）</h4>
         <div className="row">
+          <label className="faint" htmlFor="gen-provider">
+            图像 Provider
+          </label>
+          <select
+            id="gen-provider"
+            value={providerChoice}
+            onChange={(e) => {
+              setProviderChoice(e.target.value);
+              setModelChoice("");
+            }}
+            aria-label="选择图像 Provider"
+          >
+            <option value="">跟随当前 Provider（默认豆包）</option>
+            {imageOptions.map((o) => (
+              <option key={o.id} value={o.id} disabled={!o.reason ? false : true}>
+                {o.name}
+                {o.reason ? ` — 不可用：${o.reason}` : `（${o.models.length} 个图像模型）`}
+              </option>
+            ))}
+          </select>
+          <label className="faint" htmlFor="gen-model">
+            模型
+          </label>
+          <select
+            id="gen-model"
+            value={modelChoice}
+            onChange={(e) => setModelChoice(e.target.value)}
+            aria-label="选择图像模型"
+            disabled={!providerChoice}
+          >
+            <option value="">默认（目录第一个）</option>
+            {(imageOptions.find((o) => o.id === providerChoice)?.models ?? []).map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
           <button className="pixel-btn pixel-btn--primary" disabled={!motionId || busy === "prepare"} onClick={() => void handlePrepare()}>
             {busy === "prepare" ? "计算中…" : "生成确认预览（不发起调用）"}
           </button>
           {motion && <span className="faint mono">当前策略：{STRATEGY_LABEL[String(motion.strategy.count)] ?? motion.strategy.count} 方向</span>}
         </div>
+        {imageOptions.every((o) => o.reason) && (
+          <div className="faint">暂无可用图像 Provider — 请先在设置中完成配置（无可用 Provider 时生成会被拒绝）</div>
+        )}
         {plan && (
           <div className="pixel-panel gen-plan">
             <ul className="mono gen-plan__list">
-              <li>provider / model：{plan.providerId} / {plan.model}</li>
+              <li>
+                provider / model：{plan.providerId} / {plan.model}
+                {plan.providerType ? `（协议：${plan.providerType}）` : ""}
+              </li>
+              <li>能力：{plan.capability}（视频能力未接入，仅图像生成可执行）</li>
               <li>
                 方向数：{plan.directions}（{plan.basicDirections} 生成 + {plan.mirroredDirections} 镜像）
               </li>

@@ -31,7 +31,12 @@ func (d *Doubao) ID() string { return ProviderDoubao }
 
 func (d *Doubao) Name() string { return "豆包 (Doubao)" }
 
-func (d *Doubao) Capabilities() Capabilities { return Capabilities{Image: true, Text: true} }
+func (d *Doubao) Capabilities() Capabilities {
+	// Current behavior: image + text only. Video stays false until the
+	// Seedance/video adapter exists, even though Doubao carries a reserved
+	// video model catalog entry in its config defaults.
+	return Capabilities{Image: true, Video: false, Text: true}
+}
 
 func (d *Doubao) DefaultImageModel() string { return DefaultDoubaoModel }
 

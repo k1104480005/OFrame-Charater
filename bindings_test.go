@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/oframe/character-workbench/core/provider"
+	"github.com/oframe/character-workbench/core/settings"
 )
 
 // newTestApp builds an App pointed at a temp workspace so binding tests run
@@ -21,6 +24,9 @@ func newTestApp(t *testing.T, client *http.Client) (*App, string) {
 	app := NewApp()
 	app.settingsDir = filepath.Join(t.TempDir(), "cfg")
 	app.httpClient = client
+	// Seed the classic built-in trio for binding tests (人工验收更新: fresh
+	// installs start EMPTY — most tests here assume a pre-configured doubao).
+	seedAppProviders(t, app.settingsDir)
 	info, err := app.WorkspaceOpen(wsRoot)
 	if err != nil {
 		t.Fatalf("WorkspaceOpen: %v", err)
@@ -40,6 +46,27 @@ func newTestApp(t *testing.T, client *http.Client) (*App, string) {
 func newTestAppSimple(t *testing.T) (*App, string) {
 	t.Helper()
 	return newTestApp(t, nil)
+}
+
+// seedAppProviders writes the classic doubao/openai/agnes trio into the
+// settings file BEFORE the app's service is lazily created, so the seeded
+// providers are registered on first use.
+func seedAppProviders(t *testing.T, dir string) {
+	t.Helper()
+	store, err := settings.New(dir)
+	if err != nil {
+		t.Fatalf("seed settings: %v", err)
+	}
+	ps := store.ProviderSettings()
+	ps.Providers = map[string]provider.ProviderConfig{
+		provider.ProviderDoubao: provider.DefaultConfig(provider.ProviderDoubao),
+		provider.ProviderOpenAI: provider.DefaultConfig(provider.ProviderOpenAI),
+		provider.ProviderAgnes:  provider.DefaultConfig(provider.ProviderAgnes),
+	}
+	ps.ActiveProvider = provider.ProviderDoubao
+	if err := store.SaveProviderSettings(ps); err != nil {
+		t.Fatalf("seed providers: %v", err)
+	}
 }
 
 func TestAppInfo(t *testing.T) {

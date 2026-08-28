@@ -15,13 +15,15 @@
 }
 
 .launch__logo {
-  font-size: 18px;
+  font-size: 22px;
+  font-weight: 800;
   letter-spacing: 2px;
   color: var(--ink);
 }
 
 .launch__subtitle {
   color: var(--ink-dim);
+  font-size: 15px;
   margin-top: var(--space-1);
 }
 
@@ -103,7 +105,29 @@
   white-space: nowrap;
 }
 
-.launch__cat--drop {
+/* 分类选中态：动森 tab 激活风格（参考 animal-island-ui .animal-tabItem.active）
+ * 深薄荷绿实底 + 米白加粗文字，与普通按钮（米白底棕字）形成强区分；双主题通用。
+ * 注意：必须用双类名（0,2,0）提高特异性，否则会被打包顺序靠后的 .pixel-btn 覆盖 */
+.launch__cat.launch__cat--active,
+.launch__cat.launch__cat--active:hover {
+  background: #0cc0b5;
+  border-color: #0aa89d;
+  color: #fff9e3;
+  font-weight: 600;
+  box-shadow: 0 3px 0 0 rgba(61, 52, 40, 0.16);
+}
+
+.launch__cat.launch__cat--active:active {
+  background: #0aa89d;
+  box-shadow: 0 1px 0 0 rgba(61, 52, 40, 0.2);
+}
+
+.launch__cat.launch__cat--active .faint {
+  color: rgba(255, 249, 227, 0.75);
+}
+
+.launch__cat.launch__cat--drop,
+.launch__cat.launch__cat--drop:hover {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   background: var(--primary-bg);
@@ -282,6 +306,16 @@
   overflow-y: auto;
 }
 
+/* 创建弹窗内的分类下拉：fixed 跟随按钮屏幕坐标，可超出弹窗边界完整显示，
+ * 超高（>6 项）在菜单内部滚动，不带动整个弹窗；left/top/width 由行内样式控制 */
+.launch__catmenu--fixed {
+  position: fixed;
+  right: auto;
+  z-index: 200; /* 高于弹窗遮罩(120)与弹窗内容 */
+  max-height: 224px;
+  overflow-y: auto;
+}
+
 .launch__catmenu-item {
   width: 100%;
   justify-content: flex-start;
@@ -302,6 +336,7 @@
 
 /* 弹窗（创建 / 工作区）：限高防溢出，内容超高时内部滚动 */
 .launch-modal {
+  position: relative; /* 红色关闭按钮 ✕ 的定位基准 */
   width: 400px;
   max-width: 92vw;
   max-height: calc(100vh - 48px);

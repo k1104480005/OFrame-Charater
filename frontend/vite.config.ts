@@ -7,7 +7,9 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "dist",
-    emptyOutDir: true,
+    // 本机 safe-delete 垫片对 vite 的 outDir 清理（rmSync force）会失败：
+    // 关闭自动清理，构建前显式删除 dist（见 wails 打包流程），避免构建中断。
+    emptyOutDir: false,
   },
   server: {
     host: "localhost",

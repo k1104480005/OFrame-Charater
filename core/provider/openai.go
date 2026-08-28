@@ -21,7 +21,7 @@ func (o *OpenAI) ID() string { return ProviderOpenAI }
 
 func (o *OpenAI) Name() string { return "OpenAI gpt-image-2" }
 
-func (o *OpenAI) Capabilities() Capabilities { return Capabilities{Image: true} }
+func (o *OpenAI) Capabilities() Capabilities { return Capabilities{Image: true, Video: false} }
 
 func (o *OpenAI) DefaultImageModel() string { return DefaultOpenAIModel }
 

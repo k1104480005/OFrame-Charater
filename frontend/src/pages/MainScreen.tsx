@@ -4,7 +4,6 @@
 import { useRef, useState } from "react";
 import { useSession } from "../state/SessionContext";
 import { Tabs } from "../components/Tabs";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { TaskDrawer } from "../components/TaskDrawer";
 import type { TaskDrawerHandle } from "../components/TaskDrawer";
 import { SettingsPanel } from "../components/SettingsPanel";
@@ -32,20 +31,19 @@ export function MainScreen() {
     <div className="main">
       <header className="main__header">
         <div className="main__title">
-          <span className="mono main__logo">OFrame</span>
-          <span className="main__pkg mono">{pkg?.name ?? "—"}</span>
-          <span className="faint mono main__pkg-meta">
-            {pkg ? `format v${pkg.formatVersion} · ${pkg.currentVersion}` : ""}
+          <span className="main__logo">OFrame</span>
+          <span className="main__pkg">{pkg?.name ?? "—"}</span>
+          <span className="faint main__pkg-meta">
+            {pkg ? `版本 ${pkg.currentVersion} · 格式 v${pkg.formatVersion}` : ""}
           </span>
         </div>
         <div className="main__header-actions">
           <button className="pixel-btn" onClick={() => drawerHandle.current.open()} aria-label="打开任务抽屉">
-            <span className="mono">TASKS</span>
+            TASKS
           </button>
           <button className="pixel-btn" onClick={() => settingsHandle.current.open()} aria-label="打开设置" title="设置：provider / 密钥 / 统计">
-            <span className="mono">⚙ SETTINGS</span>
+            设置
           </button>
-          <ThemeToggle />
           <button className="pixel-btn" onClick={() => void close()} title="返回启动页">
             返回
           </button>

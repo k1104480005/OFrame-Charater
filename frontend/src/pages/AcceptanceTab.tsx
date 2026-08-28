@@ -245,21 +245,25 @@ export function AcceptanceTab() {
             洋红检查 {showMatting ? "开" : "关"}
           </button>
         </div>
-        <PixelCanvas
-          unitWidth={preview?.canvasWidth || 16}
-          unitHeight={preview?.canvasHeight || 16}
-          scale={12}
-          frames={(preview?.frames ?? []).map((f) => ({
-            png: f.png,
-            durationMs: f.durationMs,
-            anchors: (f.anchors ?? []).map((a) => ({ name: a.Name, x: a.X, y: a.Y })),
-          }))}
-          playing={playing}
-          showMatting={showMatting}
-          showGrid={showGrid}
-          showAnchors={showAnchors}
-          label={direction ? `${motion?.name ?? ""} / ${direction}` : undefined}
-        />
+        {preview ? (
+          <PixelCanvas
+            unitWidth={preview.canvasWidth || 16}
+            unitHeight={preview.canvasHeight || 16}
+            scale={12}
+            frames={(preview.frames ?? []).map((f) => ({
+              png: f.png,
+              durationMs: f.durationMs,
+              anchors: (f.anchors ?? []).map((a) => ({ name: a.Name, x: a.X, y: a.Y })),
+            }))}
+            playing={playing}
+            showMatting={showMatting}
+            showGrid={showGrid}
+            showAnchors={showAnchors}
+            label={direction ? `${motion?.name ?? ""} / ${direction}` : undefined}
+          />
+        ) : (
+          <div className="empty-state">请选择动作和方向后查看 PixelPerfect 预览</div>
+        )}
         <div className="faint">最近邻采样回放 —— 预览渲染与切片结果逐像素一致（任务 5.5）</div>
       </section>
 
@@ -335,6 +339,10 @@ export function AcceptanceTab() {
               <li>
                 替换方向：{(replacePlan.basicLabels ?? []).join(", ") || direction} · 预计调用量 {replacePlan.expectedCalls} 次 · 预算上限{" "}
                 {replacePlan.maxTotalAttempts} 次
+              </li>
+              <li>
+                provider / model：{replacePlan.providerId} / {replacePlan.model}
+                {replacePlan.providerType ? `（协议：${replacePlan.providerType}）` : ""} · 能力：{replacePlan.capability}
               </li>
               <li>
                 预算：约 {replacePlan.expectedCost.toFixed(2)} {replacePlan.currency}

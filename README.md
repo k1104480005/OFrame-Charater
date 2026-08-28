@@ -75,6 +75,7 @@ oframe export create --output D:\my-game\assets --target godot D:\my-workspace\H
 | 文档 | 内容 |
 |---|---|
 | `docs/user-guide.md` | 用户指南：全流程、镜像语义、生成确认、成本说明、FAQ |
+| `docs/known-issues.md` | 已知限制：提示词增强、默认尺寸、费用币种、视频目录 |
 | `docs/cli-guide.md` | CLI 参考：命令、批量/CI 用法、双端一致性说明 |
 | `docs/example-walkthrough.md` | 示例走查：一个角色从文字到 4 方向行走资产 |
 | `docs/product-description.md` | 产品描述（GitHub About / 发布用） |
@@ -132,10 +133,44 @@ npm run typecheck
 npm run build
 npm run check:pixel-atlas    # PixelCanvas 图集/降级缩放纯函数校验
 
-# Wails GUI（网络受限环境下先 rm -rf frontend/dist + npm run build，再 wails build -s -m -webview2 browser）
-wails build             # 产物在 build/bin/OFrameCharacterWorkbench.exe
-wails build -nsis       # 另产出 NSIS 安装包（需 makensis 在 PATH）
+# Wails GUI：推荐直接让 Wails 执行 frontend:build，确保真实界面被嵌入
+wails build -m -webview2 browser             # 便携版，产物在 build/bin/OFrameCharacterWorkbench.exe
+wails build -nsis -m -webview2 browser       # 便携版 + NSIS；NSIS PATH 配置见下文
 ```
+
+### Windows NSIS 安装包
+
+本机已安装 NSIS 3.12，固定路径为：
+
+```text
+C:\Users\Administrator\AppData\Local\Programs\nsis-3.12\makensis.exe
+```
+
+该目录当前未必在新 PowerShell 进程的 `PATH` 中。Wails 使用 `//go:embed all:frontend/dist` 嵌入前端，仓库里的 `frontend/dist/index.html` 是为了 fresh clone 保留的占位入口；**不能在占位入口上直接使用 `wails build -s`**，否则 EXE 会显示“前端尚未构建”。
+
+推荐的发布构建顺序：
+
+```powershell
+# 在项目根目录执行；不使用 -s，让 Wails 先执行 wails.json 的 frontend:build
+wails build -m -webview2 browser
+
+# NSIS 不在 PATH 时，加入当前 PowerShell 进程后再打包
+$env:Path = 'C:\Users\Administrator\AppData\Local\Programs\nsis-3.12;' + $env:Path
+makensis.exe /VERSION
+wails build -nsis -s -m -webview2 browser
+```
+
+第一条命令会生成真实的 `frontend/dist/index.html` 和 `assets/`；第二条命令使用 `-s` 跳过重复前端构建，只负责重新编译并生成 NSIS 安装包。两条命令之间不要恢复占位 `frontend/dist/index.html`。如果出现 `makensis not found`，先检查上述固定路径中的 `makensis.exe` 是否存在，再检查当前 PowerShell 的 `PATH`，不要重复安装 NSIS。
+
+成功产物为 `build/bin/oframe-character-workbench-amd64-installer.exe`；便携版为 `build/bin/OFrameCharacterWorkbench.exe`。发布前可用下面的检查确认 EXE 没有嵌入占位文案：
+
+```powershell
+$bytes = [System.IO.File]::ReadAllBytes('build/bin/OFrameCharacterWorkbench.exe')
+([System.Text.Encoding]::UTF8.GetString($bytes)).Contains('Frontend not built yet')
+# 应输出 False
+```
+
+构建结束后如需保持仓库中的 fresh-clone 占位入口，可恢复 `frontend/dist/index.html`；这不会改变已经生成的 EXE/安装包，但下次使用 `-s` 前必须重新执行第一条 Wails 构建命令。
 
 > 离线构建：Go 依赖走本地 module cache（`GOPROXY=off GOSUMDB=off`）；
 > 测试均为确定性合成图像，不调用真实付费 API。

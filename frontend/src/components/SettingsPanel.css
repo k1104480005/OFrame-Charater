@@ -1,25 +1,24 @@
-/* 设置面板（齿轮入口）：圆润面板 + 8px 间距栅格（主题令牌）。 */
+/* 设置面板 v2（齿轮入口）：卡片式 Provider 管理。
+ * 动森风格：圆润面板、虚线分隔、3D 按下按钮；遮罩全屏居中，内部滚动。 */
 
 .settings-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   z-index: 60;
   animation: animal-fade 0.2s ease;
 }
 
 .settings-panel {
-  width: 420px;
-  max-width: 92vw;
-  max-height: 86vh;
-  overflow-y: auto;
-  margin: 16px;
+  position: relative;
+  width: 780px;
+  max-width: 96vw;
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   box-shadow: var(--shadow-modal);
   animation: animal-pop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -34,24 +33,370 @@
   to { opacity: 1; transform: none; }
 }
 
+/* 固定头部：标题，不参与滚动 */
 .settings-panel__head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: var(--bg-panel);
+  padding: 8px 0 12px;
+  border-bottom: var(--border-w) solid var(--border-faint);
+}
+
+/* 滚动内容区：只有这里上下滚动 */
+.settings-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+.settings-panel__title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--ink);
 }
 
 .settings-panel section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+}
+
+/* 不同设置项之间用虚线分隔（动森风格），未来新增项自动扩展 */
+.settings-panel section + section {
+  border-top: var(--border-w) dashed var(--border-faint);
+  padding-top: 16px;
 }
 
 .settings-panel h4 {
   margin: 0;
   font-size: 13px;
+  font-weight: 700;
 }
 
-.settings-providers,
+.settings-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 区块说明：字段/概念一句话讲清楚 */
+.settings-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  opacity: 0.75;
+}
+
+.settings-hint code,
+.provider-hints code {
+  font-size: 11px;
+  background: var(--bg-inset, rgba(0, 0, 0, 0.06));
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+/* ---- 预设行 ---- */
+.settings-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pixel-btn--small {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* ---- Provider 卡片 ---- */
+.settings-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provider-card {
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: 12px;
+  background: var(--bg-panel, #fff);
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.provider-card--active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-head__spacer {
+  flex: 1 1 auto;
+}
+
+/* 展开/收缩（人工验收反馈：卡片默认收起省空间） */
+.provider-toggle {
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.provider-toggle:hover {
+  color: var(--primary);
+}
+
+.provider-summary {
+  font-size: 11px;
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 8px;
+  color: var(--ink-dim);
+}
+
+/* 数量为 0 的目录 / 未配置命令：红色高亮（该能力当前不可生成的信号） */
+.provider-summary .sum-zero {
+  color: var(--status-warn-dim, #c94444);
+  font-weight: 700;
+}
+
+/* 类型徽标（卡片头部 + 预设按钮里的协议标签共用）：厂商色只作半透明蒙层，
+   文字一律 var(--ink) —— 动森规范禁纯白，且两个类名都要能命中同一套色。 */
+.provider-type,
+.preset-tag {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+
+.preset-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
+.provider-type.type-doubao,
+.preset-tag.type-doubao { background: rgba(74, 163, 162, 0.22); }
+.provider-type.type-openai,
+.preset-tag.type-openai { background: rgba(91, 124, 153, 0.22); }
+.provider-type.type-agnes,
+.preset-tag.type-agnes { background: rgba(138, 127, 181, 0.22); }
+.provider-type.type-compatible,
+.preset-tag.type-compatible { background: rgba(181, 137, 90, 0.22); }
+
+/* 七协议徽标（任务 5.1）：与 FrameBaker 预设一一对应 */
+.provider-type.type-api,
+.preset-tag.type-api { background: rgba(168, 135, 79, 0.22); }
+.provider-type.type-dashscope,
+.preset-tag.type-dashscope { background: rgba(217, 123, 79, 0.22); }
+.provider-type.type-gemini,
+.preset-tag.type-gemini { background: rgba(79, 136, 217, 0.22); }
+.provider-type.type-minimax,
+.preset-tag.type-minimax { background: rgba(201, 79, 124, 0.22); }
+.provider-type.type-volcengine,
+.preset-tag.type-volcengine { background: rgba(74, 163, 154, 0.22); }
+.provider-type.type-cli,
+.preset-tag.type-cli { background: rgba(107, 114, 128, 0.22); }
+
+/* 名称 */
+.provider-name {
+  min-width: 120px;
+  flex: 1 1 160px;
+  font-weight: 700;
+}
+
+.provider-name--static {
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+/* 收起态名称：纯文本 + 点击展开（人工验收优化） */
+.provider-name--click {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 4px 0;
+  font-family: inherit;
+}
+
+.provider-name--click:hover {
+  color: var(--primary);
+}
+
+/* 能力标签 / 状态徽标 */
+.cap-badge,
+.key-badge,
+.active-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.cap-badge {
+  background: var(--bg-inset);
+  color: var(--ink-dim);
+}
+
+/* 状态徽标统一走动森状态 token（tokens.css：--status-ok 绿 / --status-warn 红 /
+   --focus 黄），浅色文字一律禁纯白 → var(--on-primary)；背景用对应色的半透明
+   蒙层，暖白/深墨双主题都可读。 */
+.key-ok {
+  background: rgba(111, 186, 44, 0.16);
+  color: var(--status-ok-dim, #5a9e1e);
+}
+.key-env {
+  background: rgba(255, 204, 0, 0.2);
+  color: var(--ink);
+}
+.key-missing {
+  background: rgba(224, 90, 90, 0.14);
+  color: var(--status-warn-dim, #c94444);
+}
+
+.active-badge {
+  background: var(--primary);
+  color: var(--on-primary, #0b5f55);
+}
+
+/* ---- 字段区 ---- */
+.provider-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.provider-fields .field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.provider-fields .field > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  opacity: 0.85;
+}
+
+/* .px-input：设置面板表单控件的统一文字/底色（边框与阴影由 global.css 的
+   input/textarea/select 元素规则提供；此前该类从未定义，导致控件走浏览器
+   默认样式 —— 字体颜色与动森主题不符的根因之一）。 */
+.px-input {
+  color: var(--ink);
+  background: var(--bg-inset);
+}
+
+.field-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.field-key-row .px-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.px-input.num {
+  max-width: 140px;
+}
+
+/* ---- 字段帮助说明 ---- */
+.provider-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.provider-hints p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+.hint.warn {
+  color: var(--status-warn-dim, #c94444);
+  font-size: 12px;
+}
+
+/* ---- 模型 chips ---- */
+.model-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 4px;
+  border: var(--border-w) dashed var(--border-faint);
+  border-radius: 10px;
+}
+
+.model-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-faint);
+  background: var(--bg-inset, rgba(0, 0, 0, 0.05));
+  cursor: pointer;
+  color: var(--ink, inherit);
+  transition: all 0.15s ease;
+}
+
+.model-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary, #0b5f55);
+}
+
+/* ---- 测试连接结果 ---- */
+.provider-test {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.test-result {
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.test-result.ok { color: var(--status-ok-dim, #5a9e1e); }
+.test-result.bad { color: var(--status-warn-dim, #c94444); }
+
+/* ---- 统计 ---- */
 .settings-stats {
   list-style: none;
   margin: 0;
@@ -62,16 +407,86 @@
   font-size: 12px;
 }
 
-.settings-providers__active {
-  color: var(--primary);
+.settings-stats li {
+  overflow-wrap: anywhere;
+}
+
+.stat-provider {
   font-weight: 700;
 }
 
-.settings-config {
-  gap: 4px;
+/* 兼容旧引用 */
+.settings-providers {
+  display: none;
 }
 
-.settings-config input,
-.settings-config select {
-  width: 100%;
+/* ===== 任务 5.1–5.5 新增 ===== */
+
+/* 快速添加：预设按钮带协议标签与配置状态（标签样式见顶部 .preset-tag 共享规则） */
+.preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-count {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+/* 模型 chips 工具条：能力目标 + 过滤（任务 5.4） */
+.model-chips__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.cap-select {
+  width: auto;
+  min-width: 110px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.model-filter {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.model-chips__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* CLI 额外参数多行输入（每行一个参数） */
+.cli-extra {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  resize: vertical;
+}
+
+/* 宽字段（CLI 命令 / 额外参数） */
+.field--wide {
+  flex: 1 1 100%;
+}
+
+/* 提示词增强关联行（任务 5.5） */
+.enhance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.enhance-row .px-input {
+  min-width: 200px;
 }

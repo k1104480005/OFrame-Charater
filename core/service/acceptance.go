@@ -257,6 +257,13 @@ func (s *Service) CandidateConsistency(ctx context.Context, pkgPath string, useA
 	if _, err := cfg.ResolveAPIKey(); err != nil {
 		return ConsistencyScoreView{Score: local, Source: "local", Detail: "no provider key; local heuristic"}, nil
 	}
+	// Capability gate (task 1.4): a text call may only be issued when the
+	// provider has a resolvable TEXT model in its catalog; otherwise the AI
+	// scoring degrades to the local heuristic BEFORE any external call (the
+	// score never blocks the acceptance flow — no provider/model substitution).
+	if _, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityText, ""); err != nil {
+		return ConsistencyScoreView{Score: local, Source: "local", Detail: "text capability/model unavailable (" + err.Error() + "); local heuristic"}, nil
+	}
 	callCtx, cancel := context.WithTimeout(ctx, cfg.EffectiveTimeout())
 	defer cancel()
 	res, err := prov.GenerateText(callCtx, providerTextRequest(cfg, cands))

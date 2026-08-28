@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/oframe/character-workbench/core/provider"
 )
 
 // cmdProvider implements `oframe provider ...`: list | config get | config set
@@ -129,7 +131,10 @@ func cmdProviderConfigSet(args []string, jsonOut bool, stdout io.Writer) error {
 	defer func() { _ = svc.Close() }()
 	cfg, err := svc.ProviderConfig(id)
 	if err != nil {
-		return err
+		// Unknown id (fresh store carries no provider cards since the 人工验收
+		// update): start from the id's built-in defaults — SaveProviderConfig
+		// validates, persists and registers it in one step.
+		cfg = provider.DefaultConfig(id)
 	}
 	if *key != "" {
 		cfg.APIKey = *key

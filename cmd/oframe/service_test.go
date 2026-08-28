@@ -107,20 +107,34 @@ func TestProviderCommands(t *testing.T) {
 		t.Fatalf("provider list json: %v\n%s", err, out)
 	}
 	providers := list["providers"].([]any)
-	if len(providers) != 3 {
-		t.Fatalf("providers = %d", len(providers))
+	// 人工验收更新: a fresh install has NO provider cards — the CLI `config
+	// set` below registers doubao on demand.
+	if len(providers) != 0 {
+		t.Fatalf("providers = %d, want 0 before any configuration", len(providers))
 	}
 
-	// Validate without key fails (offline).
-	if _, _, err := runCLI(t, "provider", "validate", "--settings-dir", settingsDir, "doubao"); err == nil {
-		t.Fatal("expected validation error without key")
-	}
-
-	// Set a key, then validate passes.
+	// Set a key on doubao: the id is unknown to the fresh store, so
+	// SaveProviderConfig validates + persists + registers it in one step.
 	out, _, err = runCLI(t, "provider", "config", "set", "--key", "ark-test", "--settings-dir", settingsDir, "doubao", "--json")
 	if err != nil {
 		t.Fatalf("config set: %v\n%s", err, out)
 	}
+	out, _, err = runCLI(t, "provider", "list", "--settings-dir", settingsDir, "--json")
+	if err != nil {
+		t.Fatalf("provider list after set: %v", err)
+	}
+	_ = json.Unmarshal([]byte(out), &list)
+	providers = list["providers"].([]any)
+	if len(providers) != 1 {
+		t.Fatalf("providers after config set = %d, want 1 (doubao auto-registered)", len(providers))
+	}
+
+	// Validate without key fails (offline).
+	emptyDir := filepath.Join(t.TempDir(), "cfg-empty")
+	if _, _, err := runCLI(t, "provider", "validate", "--settings-dir", emptyDir, "doubao"); err == nil {
+		t.Fatal("expected validation error without key")
+	}
+
 	if _, _, err := runCLI(t, "provider", "validate", "--settings-dir", settingsDir, "doubao"); err != nil {
 		t.Fatalf("validate after set: %v", err)
 	}
@@ -187,6 +201,12 @@ func TestGenerationPlanCommand(t *testing.T) {
 	httpClientOverride = nil
 	defer func() { httpClientOverride = nil }()
 
+	// 人工验收更新: fresh stores have no providers — configure doubao first
+	// (the CLI registers it on demand).
+	if _, _, err := runCLI(t, "provider", "config", "set", "--key", "ark-plan", "--settings-dir", settingsDir, "doubao"); err != nil {
+		t.Fatal(err)
+	}
+
 	out, _, err := runCLI(t, "generation", "plan", "--directions", "4", "--settings-dir", settingsDir, pkg, "--json")
 	if err != nil {
 		t.Fatalf("generation plan: %v\n%s", err, out)
@@ -219,6 +239,11 @@ func TestGenerationRunRequiresConfirmation(t *testing.T) {
 		return cliFilmstripResp(t), nil
 	}}}
 	defer func() { httpClientOverride = nil }()
+
+	// A provider must be configured before a plan can be built.
+	if _, _, err := runCLI(t, "provider", "config", "set", "--key", "ark-test", "--settings-dir", settingsDir, "doubao"); err != nil {
+		t.Fatal(err)
+	}
 
 	out, _, err := runCLI(t, "generation", "run", "--directions", "1", "--settings-dir", settingsDir, pkg, "--json")
 	if err != nil {

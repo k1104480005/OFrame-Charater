@@ -19,6 +19,10 @@ export function DirectionPreview(arg1:string,arg2:string):Promise<main.Candidate
 
 export function EditDirection(arg1:string,arg2:string,arg3:Array<main.EditInstructionView>):Promise<main.EditResultView>;
 
+export function EnhanceSettingsGet():Promise<main.EnhanceSettingsView>;
+
+export function EnhanceSettingsSet(arg1:string,arg2:string):Promise<void>;
+
 export function ExportCreate(arg1:string,arg2:string,arg3:string):Promise<assetexport.Result>;
 
 export function ExportHistory():Promise<Array<assetexport.HistoryRecord>>;
@@ -77,15 +81,31 @@ export function PickWorkspaceDir(arg1:string):Promise<string>;
 
 export function PresetCatalog():Promise<main.PresetCatalogView>;
 
+export function ProviderAdd(arg1:main.ProviderConfigView):Promise<main.ProviderInfoView>;
+
 export function ProviderConfigGet(arg1:string):Promise<main.ProviderConfigView>;
 
 export function ProviderConfigSave(arg1:string,arg2:main.ProviderConfigView):Promise<void>;
 
 export function ProviderList():Promise<Array<main.ProviderInfoView>>;
 
+export function ProviderModels(arg1:string):Promise<Array<string>>;
+
+export function ProviderModelsDraft(arg1:main.ProviderConfigView):Promise<Array<string>>;
+
+export function ProviderOptions(arg1:string):Promise<Array<main.ProviderOptionView>>;
+
+export function ProviderPresets():Promise<Array<main.ProviderPresetView>>;
+
+export function ProviderRemove(arg1:string):Promise<void>;
+
 export function ProviderSetActive(arg1:string):Promise<void>;
 
 export function ProviderStats():Promise<main.StatsView>;
+
+export function ProviderTest(arg1:string):Promise<main.ProviderTestView>;
+
+export function ProviderTestDraft(arg1:main.ProviderConfigView):Promise<main.ProviderTestView>;
 
 export function ProviderValidate(arg1:string):Promise<string>;
 
@@ -100,6 +120,8 @@ export function TaskList():Promise<Array<main.TaskSummary>>;
 export function TaskResumeAll():Promise<number>;
 
 export function TaskRetry(arg1:string):Promise<void>;
+
+export function VideoExtractionConfig(arg1:string):Promise<main.VideoExtractionConfigView>;
 
 export function WorkspaceEnsureDefault():Promise<main.WorkspaceInfo>;
 

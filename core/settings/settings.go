@@ -80,6 +80,13 @@ func New(dir string) (*Store, error) {
 	if err := json.Unmarshal(data, &d); err != nil {
 		return nil, fmt.Errorf("settings: corrupt settings file %s: %w", s.path, err)
 	}
+	// Task 1.2 (align-framebaker-providers): migrate the loaded payload on
+	// read — missing providers/active fall back to the defaults, legacy single
+	// model fields stay reachable through the Effective* catalogs and custom
+	// provider types are preserved. Only the in-memory copy is normalized: the
+	// original file keeps its bytes until an explicit save (SaveProviderSettings),
+	// so loading old settings never rewrites them.
+	d.Provider = provider.NormalizeSettings(d.Provider)
 	s.data = d
 	return s, nil
 }
@@ -94,7 +101,11 @@ func (s *Store) Path() string { return s.path }
 func (s *Store) ProviderSettings() provider.Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := provider.Settings{ActiveProvider: s.data.Provider.ActiveProvider}
+	out := provider.Settings{
+		ActiveProvider:    s.data.Provider.ActiveProvider,
+		EnhanceProviderID: s.data.Provider.EnhanceProviderID,
+		EnhanceModel:      s.data.Provider.EnhanceModel,
+	}
 	out.Providers = make(map[string]provider.ProviderConfig, len(s.data.Provider.Providers))
 	for id, c := range s.data.Provider.Providers {
 		out.Providers[id] = c

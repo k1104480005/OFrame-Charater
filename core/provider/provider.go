@@ -13,9 +13,39 @@ const (
 	ProviderAgnes  = "agnes"
 )
 
+// ProviderTypeCompatible is the adapter type for user-defined OpenAI-compatible
+// providers (any custom Base URL / model / key). Built-in providers use their
+// own id as the type; the compatible type powers the settings presets.
+const ProviderTypeCompatible = "compatible"
+
+// Protocol adapter types for the FrameBaker presets (design D1: explicit
+// protocol discriminator — every preset maps to exactly one protocol so a
+// vendor's request shape is never silently replaced by another vendor's).
+// Config/capability metadata accept them from now on; the concrete protocol
+// adapters are wired into NewAdapter in the adapter tasks.
+const (
+	ProviderTypeCLI        = "cli"        // 自定义 CLI provider（argv 执行，不用 shell）
+	ProviderTypeAPI        = "api"        // 自定义通用 API provider
+	ProviderTypeDashscope  = "dashscope"  // 百炼 DashScope 原生协议
+	ProviderTypeGemini     = "gemini"     // banana / Gemini generateContent 协议
+	ProviderTypeMiniMax    = "minimax"    // MiniMax 图片 API 协议
+	ProviderTypeVolcengine = "volcengine" // 火山方舟/豆包 Ark 原生协议
+)
+
 // DefaultProviderID is the provider used when the user has not chosen one
 // (generation spec: 首次生成默认路由到 Doubao).
 const DefaultProviderID = ProviderDoubao
+
+// IsBuiltin reports whether id is one of the three built-in providers. The
+// built-ins are protected from removal in the settings UI; custom providers
+// are user-defined and freely removable.
+func IsBuiltin(id string) bool {
+	switch id {
+	case ProviderDoubao, ProviderOpenAI, ProviderAgnes:
+		return true
+	}
+	return false
+}
 
 // ErrUnsupported reports that a provider does not support the requested
 // modality (e.g. gpt-image-2 has no text generation).
@@ -25,9 +55,13 @@ var ErrUnsupported = errors.New("provider: modality not supported by this provid
 // fallback is available.
 var ErrNoAPIKey = errors.New("provider: no API key configured (set it in settings or the OFRAME_*_API_KEY environment variable)")
 
-// Capabilities describes which modalities a provider supports.
+// Capabilities describes which modalities a provider supports. Video is
+// reserved metadata for the future video generation/filmstrip-extraction
+// pipeline: while no adapter implements video calls, no adapter may report
+// Video (capability declarations stay truthful before any external call).
 type Capabilities struct {
 	Image bool `json:"image"`
+	Video bool `json:"video"`
 	Text  bool `json:"text"`
 }
 

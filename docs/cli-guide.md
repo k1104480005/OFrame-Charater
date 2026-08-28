@@ -63,7 +63,17 @@ provider validate <id>               离线配置校验
 provider stats                       本地调用统计（次数与费用估算）
 ```
 
-provider id：`doubao`（默认）、`gpt-image-2`（`openai`）、`agnes`。
+内置 provider id：`doubao`（默认主力）、`openai`（gpt-image-2）、`agnes`。全新安装**不预置**
+任何 provider（人工验收更新）——对未配置的 id 直接执行 `provider config set <id>` 会校验、
+持久化并注册该 provider（内置 id 使用其默认端点/模型）。
+
+自定义 provider（在 GUI 设置面板「快速添加」创建，生成新的 id）支持显式协议类型：
+`compatible` / `api`（OpenAI 兼容）、`dashscope`（百炼）、`gemini`（banana/Gemini）、
+`minimax`、`volcengine`（火山方舟/豆包）、`cli`（本地命令行工具）。每个 provider 的
+图像 / 视频 / 文本模型独立保存在目录字段（`imageModels` / `videoModels` / `textModels`，
+兼容旧的单模型字段）；视频目录为预留配置，视频执行管线接入前不可调用。添加后同样可用
+`provider config set <id>` 配置密钥/模型；`provider list` 会显示每个 provider 的协议类型
+与能力声明。
 
 ### `generation`（生成确认 + 批量生成）
 

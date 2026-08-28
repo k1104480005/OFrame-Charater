@@ -75,9 +75,11 @@ type OutboundMaterial struct {
 type GenerationPlan struct {
 	ID                      string                  `json:"id"`
 	Kind                    string                  `json:"kind"` // generate | replace | regenerate
+	Capability              string                  `json:"capability"`
 	MotionID                string                  `json:"motionId,omitempty"`
 	PackagePath             string                  `json:"packagePath"`
 	ProviderID              string                  `json:"providerId"`
+	ProviderType            string                  `json:"providerType,omitempty"` // 协议类型（任务 6.3 确认界面展示）
 	Model                   string                  `json:"model"`
 	Directions              int                     `json:"directions"`               // 方向数
 	BasicDirections         int                     `json:"basicDirections"`          // 需生成的（非镜像）方向
@@ -196,6 +198,12 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 
 	// Provider + model (first generation defaults to Doubao).
 	ps := s.settings.ProviderSettings()
+	if len(ps.Providers) == 0 {
+		// 人工验收更新：fresh installs start with NO provider cards — the user
+		// adds one from the seven presets first. Fail with a readable,
+		// actionable error instead of "unknown provider doubao".
+		return nil, fmt.Errorf("service: 尚未配置任何 Provider — 请先在设置的七预设中添加并填写密钥")
+	}
 	providerID := req.ProviderID
 	if providerID == "" {
 		providerID = ps.ActiveProvider
@@ -203,11 +211,20 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	if providerID == "" {
 		providerID = provider.DefaultProviderID
 	}
-	if _, err := s.registry.Get(providerID); err != nil {
+	prov, err := s.registry.Get(providerID)
+	if err != nil {
 		return nil, err
 	}
 	cfg := ps.ConfigFor(providerID)
-	model := provider.ResolveModel(req.Model, cfg.EffectiveModel())
+	// Capability gate (align-framebaker-providers 1.4): resolve and validate the
+	// image model against the provider's capability declaration AND its model
+	// catalog BEFORE building the confirmation plan. A mismatched request fails
+	// here — offline, readable, errors.Is-branchable — and neither provider nor
+	// model is ever silently substituted.
+	model, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityImage, req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("service: %w", err)
+	}
 
 	// Presets.
 	styleID := req.StylePresetID
@@ -335,9 +352,11 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	plan := &GenerationPlan{
 		ID:                      newPlanID(),
 		Kind:                    kind,
+		Capability:              provider.ModalityImage.String(),
 		MotionID:                motionID,
 		PackagePath:             pkg.Root(),
 		ProviderID:              providerID,
+		ProviderType:            cfg.EffectiveType(),
 		Model:                   model,
 		Directions:              strategy.Count,
 		BasicDirections:         len(basic),
@@ -432,11 +451,23 @@ func (s *Service) ConfirmGeneration(ctx context.Context, planID string, accept b
 	}
 
 	s.plans.setStatus(planID, PlanConfirmed)
-	if _, err := s.registry.Get(plan.ProviderID); err != nil {
+	prov, err := s.registry.Get(plan.ProviderID)
+	if err != nil {
 		// The plan must not stay "confirmed": the decision is final and the
 		// failure reason is recorded (阶段 5 复核: provider 查询失败应置 PlanFailed).
 		s.plans.setStatus(planID, PlanFailed)
 		return nil, fmt.Errorf("service: provider %s unavailable: %w", plan.ProviderID, err)
+	}
+	// Pre-flight capability check at confirmation time (task 1.4): the plan
+	// snapshot fixed provider+model before the user confirmed; re-validate them
+	// against the CURRENT capability declaration and model catalog so a config
+	// change between prepare and confirm cannot send an unvalidated request.
+	// On failure no external call is made and the plan is marked failed.
+	ps := s.settings.ProviderSettings()
+	if _, verr := provider.ResolveValidatedModel(prov.Capabilities(), ps.ConfigFor(plan.ProviderID), provider.ModalityImage, plan.Model); verr != nil {
+		s.plans.setStatus(planID, PlanFailed)
+		s.log.Error("generation refused by pre-flight capability check", "plan", planID, "provider", plan.ProviderID, "model", plan.Model, "error", verr)
+		return nil, fmt.Errorf("service: plan %s pre-flight check failed: %w", planID, verr)
 	}
 
 	// Idempotent dedup (task 6.4 / 4.8): an identical already-successful task
@@ -746,6 +777,13 @@ func (s *Service) generateDirectionResult(ctx context.Context, prov provider.Pro
 // 最多 3 次总尝试) and records call statistics. Returns the raw image bytes and
 // the attempt count.
 func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, cfg provider.ProviderConfig, plan *GenerationPlan, refs []provider.ReferenceImage) ([]byte, int, error) {
+	// Pre-flight capability gate (task 1.4): every retry attempt runs through
+	// here, so an image request is only issued when the adapter's capability
+	// declaration supports images AND the plan's model belongs to the
+	// provider's image catalog. Not-retryable: no config error heals by retry.
+	if _, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityImage, plan.Model); err != nil {
+		return nil, 0, provider.MarkNotRetryable(fmt.Errorf("service: pre-flight capability check failed for %s/%s: %w", plan.ProviderID, plan.Model, err))
+	}
 	req := provider.ImageRequest{
 		Prompt:     plan.Prompt.Prompt,
 		Model:      plan.Model,

@@ -22,17 +22,20 @@
 }
 
 .main__logo {
-  font-size: 14px;
+  font-size: 16px;
+  font-weight: 800;
   letter-spacing: 2px;
   color: var(--ink);
 }
 
 .main__pkg {
   color: var(--status-ok);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .main__pkg-meta {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .main__header-actions {

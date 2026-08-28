@@ -425,6 +425,40 @@ input[type="checkbox"].pixel-switch:focus-visible {
   font-weight: 600;
 }
 
+/* 弹窗右上角红色关闭按钮（动森红底圆钮，通用）：
+ * 定义在文件末尾，保证打包顺序在 .pixel-btn 之后，单类名即可稳定覆盖 */
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--status-warn);
+  border: var(--border-w) solid var(--status-warn);
+  color: #fffdf7;
+  border-radius: 50%;
+  box-shadow: 0 3px 0 0 var(--status-warn-dim);
+  font-size: 14px;
+  line-height: 1;
+  z-index: 30; /* 高于面板头部/内容，避免被 sticky 头部背景遮挡 */
+}
+
+.modal-close:hover {
+  background: #ec7a7a;
+  border-color: #ec7a7a;
+}
+
+.modal-close:active {
+  background: var(--status-warn-dim);
+  border-color: var(--status-warn-dim);
+  box-shadow: 0 1px 0 0 var(--status-warn-dim);
+}
+
 .empty-state {
   padding: var(--space-5) var(--space-3);
   text-align: center;

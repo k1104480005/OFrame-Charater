@@ -31,7 +31,13 @@ OpenSpec 工作流：用 `openspec status --change build-oframe-character-workbe
   - **身份包元数据**：新增 `category`（≤32 字符，空=未分类）与 `createdAt/updatedAt`；`PackageCreate(name, category)` 创建即分类；改名 = manifest 级显示名（**目录路径不变**）。
   - **统一确认弹窗** `frontend/src/components/ConfirmModal.tsx`（替代原生 window.confirm）。
   - 修正「身分包→身份包」错别字 9 处。
-- **git 状态**：已推送 GitHub（默认分支 master，最新 `c4a4830`），工作区干净。
+- **最近一轮（2026-08-27）Provider 全面增强（参考 FrameBaker 设置页），已全量验证、已打包，git 未提交**：
+  - **后端支持自定义 OpenAI 兼容 provider**（不再只限 3 种内置）：`core/provider/compatible.go`（通用适配器）+ `test.go`（`TestConnection` GET /models 测连通/延迟/模型列表 + `ListModels`）；`ProviderConfig` 增 `Type`/`Name`/`VideoModel` 字段；`Validate()`（严格，保存时）与 `ValidateForAdd()`（结构校验，增卡时允许空 key/model/url）分离；`ProviderAdd`（id 空则按名称生成 slug、去重）/`ProviderRemove`（内置 3 个禁删，删 active 自动切回豆包）/`TestProvider`/`ListProviderModels` 绑定到 Wails。
+  - **前端设置面板 v2**（`SettingsPanel.tsx/.css` 全量重构）：Provider 卡片（类型徽标/能力标签/密钥状态徽标/当前标记/设为当前/保存/删除）、预设快速添加（OpenAI / 火山方舟 Seedream / 百炼兼容模式 / SiliconFlow / 自定义 OpenAI 兼容；当前后端均按 compatible 适配）、图像/视频（预留供视频抽帧）/文本模型字段、字段 placeholder + hint 说明、测试连接结果、获取模型 → chips 点选、面板 640→780px；保留统计/主题区块。
+  - **前端嵌入陷阱（2026-08-27）**：`main.go` 使用 `//go:embed all:frontend/dist`，仓库跟踪的 `frontend/dist/index.html` 是 fresh clone 占位入口；如果在占位入口上直接执行 `wails build -s`，生成的 EXE 会显示“前端尚未构建”，即使 `dist/assets` 中残留真实资源。正确流程是先在项目根目录执行 `wails build -m -webview2 browser` 让 Wails 按 `wails.json` 执行 `frontend:build`，确认真实入口生成后，再加入 NSIS PATH 执行 `wails build -nsis -s -m -webview2 browser`。两步之间不要恢复占位 `index.html`；发布前可检查 EXE 二进制不包含 `Frontend not built yet`。
+  - 新增测试：`core/provider/compatible_test.go`、`core/service/service_provider_test.go`（增删/重启恢复/内置保护/测试连接/模型列表，fake transport）。
+  - 验证全绿：gofmt/vet/`go test -count=1 ./...`/typecheck/`npm run build`/`wails build -s -m -webview2 browser`（产出 `build/bin/OFrameCharacterWorkbench.exe`）。
+- **git 状态（交接时）**：**本次 Provider 增强 + 文档改动尚未提交**（上次推送为 `c4a4830`）。提交前先 `git status` 确认改动清单：后端 `core/provider/*`、`core/service/service.go`、`core/service/service_provider_test.go`、根 `generation.go`、`frontend/src/components/SettingsPanel.tsx/.css`、`frontend/src/api/client.ts`、`frontend/vite.config.ts`、`frontend/wailsjs/go/**`（重新生成的绑定）、`docs/cli-guide.md`、`HANDOFF.md`。
 
 ### 最近一次验证结果（全绿）
 
@@ -42,6 +48,7 @@ go test -count=1 ./...   17 包全部通过
 npm run typecheck    通过
 npm run build        通过
 wails build -s -m -webview2 browser  通过（便携版已产出）
+$env:Path='C:\Users\Administrator\AppData\Local\Programs\nsis-3.12;'+$env:Path; wails build -nsis -s -m -webview2 browser  通过（NSIS 3.12；安装包已产出）
 ```
 
 ## 3. 架构与关键决策（接手者必须知道）
@@ -51,7 +58,7 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 - **方向规则（已确认，勿改）**：默认单方向 `down`（正面/south）；4 方向 = 3 生成（right/up/down）+ 1 镜像（left←right）；8 方向 = **5 生成（right/up/down/up-right/down-left）+ 3 镜像（left←right、up-left←up-right、down-right←down-left）**，up/down 自对称；关闭镜像时全方向独立生成。镜像锚点换算 X'=width-1-X、Y'=Y。
 - **生成契约**：每个真实生成方向一次提示词产出**横向 filmstrip**，后端确定性切片（alpha projection + DP optimal cut）、YCbCr 抠图、质心/基线对齐、共享调色板量化、质量评分；单帧生成仅用于验收修补。每方向最多 3 次总尝试（默认），镜像不消耗调用；生成必须先 `PrepareGeneration` → 用户确认 → `ConfirmGeneration`，**确认前零外呼**。
 - **质量验收**：硬门槛（帧数/透明/无裁切/锚点稳定等）+ 综合评分，默认阈值 0.7；通过 = 评分达标 **且** 用户在预览确认；拒绝候选只留在候选历史；接受后形成不可变动画资产，人工编辑保存为新修订（追加式操作日志支持回退）。
-- **Provider**：Doubao（默认）、OpenAI gpt-image-2、Agnes（显式选择）；每批次锁定 provider/model，不静默跨 provider 回退；预算在生成确认时锁定。
+- **Provider**：内置 Doubao（默认）、OpenAI gpt-image-2、Agnes（显式选择）+ **自定义 OpenAI 兼容 provider**（设置面板「快速添加」预设/自定义，可增删、拉取模型列表、真实测试连接；`ProviderConfig.Type`：内置 id 或 `compatible`）；每批次锁定 provider/model，不静默跨 provider 回退；预算在生成确认时锁定。
 - **导出**：`core/assetexport` 已实现 generic/godot/unity 目标：`spritesheet.png` + `manifest.json` + 逐帧 PNG + `generic.json|godot.json|unity.json` 目标元数据；`Build` 后自动 `Validate` 完整性，失败则任务失败；`exports/history.jsonl` 记录历史。
 
 ## 4. 下一步工作（按优先级）
@@ -64,7 +71,7 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 
 ### 4.2 剩余未勾选任务（68 项中余 1 项）
 
-- **13.4** 发布公开 Beta：NSIS 安装包 + 便携版构建已通过（1.3），示例资产（examples/hero-walk）与教程、**人工测试清单（docs/manual-test-checklist.md，A 无密钥全流程 / B 真实密钥生成 / C 边界恢复）**已就绪；剩「外部用户可完成一个完整角色资产」**人工验收**与发布渠道决策（用户当前进行中）。
+- **13.4** 发布公开 Beta：NSIS 安装包 + 便携版构建已通过（1.3），NSIS 3.12 安装于 `C:\Users\Administrator\AppData\Local\Programs\nsis-3.12\`，需将该目录加入当前构建进程的 PATH；本次已生成 `build/bin/oframe-character-workbench-amd64-installer.exe`（SHA-256：`7D3023C793897FFF0360A5E673B27D6C444CBD1BBD1881FD27D94A35B149B0A0`）。示例资产（examples/hero-walk）与教程、**人工测试清单（docs/manual-test-checklist.md，A 无密钥全流程 / B 真实密钥生成 / C 边界恢复）**已就绪；剩「外部用户可完成一个完整角色资产」**人工验收**与发布渠道决策（用户当前进行中）。
 
 ## 5. 工程注意事项
 
@@ -74,7 +81,7 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 - **不要碰的确认过的决策**：方向口径（5+3 镜像）、默认单方向 down、验收阈值 0.7、密钥本地明文存储、filmstrip 一次生成、每方向最多 3 次尝试、不做骨骼/多轨/完整绘画/云同步/MCP、不做多语言（i18n 已评估放弃：前端 16/18 文件硬编码中文 + Go 报错 13 条中文，npm 不可达装不了库）。
 - **测试风格**：确定性合成图像测试，禁止依赖真实网络/付费 API；用 fake transport；`go test -count=1 ./...` 为准。
 - **Windows 保留文件名**：测试文件不要用 `aux.*` 等保留名。
-- **打包环境坑（仍在）**：`wails build` 内部 vite 清理 `frontend/dist` 会撞本机 safe-delete 垫片。可靠做法：**前台**执行 `rm -rf frontend/dist && npm run build`（或 vite 输出到临时目录再 `cp -r`），然后 `wails build -s -m -webview2 browser`（-s 跳过前端构建，避免 WebView2 下载）。
+- **打包环境坑（仍在，2026-08-27 已给最终解法）**：本机 safe-delete 垫片对**任何**删除 `frontend/dist` 的尝试都可能失败（`rm -rf` 进回收站失败、vite 的 outDir 清理 `rmSync(force)` 也失败并中断构建）。**最终方案：`frontend/vite.config.ts` 已设 `build.emptyOutDir: false`**，vite 不再清理 dist → 构建不再中断；代价是 dist 可能残留旧产物，打包前显式删一次（`rm -rf frontend/dist`，删不掉就留着，新产物覆盖写入）。构建：`npm run build`（前端）→ `wails build -s -m -webview2 browser`（-s 跳过前端构建，避免 WebView2 下载）。
 - **⚠️ 本机 git 陷阱：不要用 `git rm`**。实测 `git rm docs/screenshots/xxx.png` 会连带删除**整个 `docs/` 目录**（原因未明，疑似沙箱对 git 删除的拦截）。删除文件一律用普通 `rm <file>` + `git add -A` 暂存删除；`git rm --cached`（仅移出索引）可用。
 - **改动规范**：先读 spec → 实现 → 更新 `tasks.md` 勾选 → 运行 gofmt/go test/go vet/前端 typecheck/build/wails build。不要虚标完成。
 
@@ -86,7 +93,7 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 | 工作区 | `core/workspace/`（workspace/config.go 新增：切换记忆/迁移；`TrashPackage` 移到 `.trash`） |
 | 动作/方向集 | `core/motion/`（motion/mirror/store） |
 | 图像管线 | `core/pipeline/`（filmstrip/slice/keying/align/palette/grid/quality/candidate/process） |
-| Provider | `core/provider/`（provider/registry/config/retry/doubao/openai/agnes/http/stats） |
+| Provider | `core/provider/`（provider/registry/config/compatible/test/retry/doubao/openai/agnes/http/stats） |
 | 任务队列 | `core/task/`（task/store）+ `core/store/`（migrations） |
 | 设置 | `core/settings/` |
 | 编辑 | `core/edit/` + `core/service/edit.go` + `edit_bindings.go` |
@@ -101,7 +108,19 @@ wails build -s -m -webview2 browser  通过（便携版已产出）
 
 新 AI 读完本文档 + 必读文件后，应能回答：当前任务进度、下一步任务、方向口径、验收规则、导出接线缺失点、验证命令、git 推送方式。从「人工验收（13.4，docs/manual-test-checklist.md）」与后续增强开始即可继续，无需重新规划。
 
-## 8. 2026-08-26 会话要点速查（接手者先看）
+## 8. 会话要点速查（接手者先看）
+
+### 2026-08-27：Provider 全面增强（参考 `D:\GitProject\FrameBaker` 设置页）
+
+- **架构**：`ProviderConfig.Type` 区分适配器——内置 `doubao/openai/agnes` 用自身 id 作 type；用户自定义统一走 **`compatible`**（OpenAI 兼容 `images/generations` + `chat/completions` + `GET /models`，`core/provider/compatible.go`）。`NewAdapter` 按 `EffectiveType()` 分支；自定义 provider 重启后由 `service.rebuildRegistry()` 从 settings 自动恢复注册。
+- **新绑定**：`ProviderAdd(cfg)`（id 空 → 按 `Name` 生成 slug，`core/service/service.go:newProviderID`）、`ProviderRemove(id)`（内置禁删；删 active 自动切回 doubao）、`ProviderTest(id)`（返回 `{ok, latencyMs, models, error}`）、`ProviderModels(id)`（模型列表）。前端 `client.ts` 对应 `addProvider/removeProvider/testProvider/fetchProviderModels`。
+- **校验分层**：`Validate()` = 严格（增/改后保存时：key+model+url+attempts），`ValidateForAdd()` = 结构（增卡时允许空 key/model/url，先建卡后填）。自定义 id 必须是 1-40 位小写字母数字连字符 slug。
+- **settings.json 兼容**：旧文件无 `type/name` 字段 → `EffectiveType()` 对空 Type 按内置 id 推断、未知 id 视为 compatible；新增字段向后兼容，无需 migration。
+- **前端约定**：设置面板 v2 是单文件组件 `SettingsPanel.tsx`（卡片列表 + 草稿 state `drafts/tests/modelLists/busy`），CSS 类全部在 `SettingsPanel.css`；⚠️ 覆盖 `.pixel-btn` 的样式必须用双类名（打包顺序不可控，见 8/26 教训）。确认弹窗用 `ConfirmModal`（需传 `open` prop）。
+- **手工验收建议**：打开设置 → 快速添加「火山方舟 Seedream」→ 填 key → 保存 → 测试连接（真实 GET /models）→ 获取模型点选；删除该卡；重启应用确认自定义 provider 仍在。
+- **其他**：`docs/cli-guide.md` 已注明自定义 provider 可用 `oframe provider config set <id>` 配置；生成流程对新 provider 零改动即兼容（预算默认 0.05 CNY/次，可在卡片覆盖）。
+
+### 2026-08-26：UI 全面翻新（已推送 `c4a4830`）
 
 - **动森皮肤来源**：参考 `D:\GitProject\animal-island-ui`（npm 包：`node_modules/animal-island-ui/dist/index.css` + `@fontsource/nunito`）。Nunito latin 400/500/600/700/800 woff2（共 ~80KB）已拷贝进 `frontend/src/assets/fonts/nunito/`，`frontend/src/styles/fonts.css` 定义 @font-face，**离线可用**；中文回退系统字体（Noto Sans SC 完整包 76M，未打包）。
 - **新绑定签名（按路径，启动页场景包未打开）**：`PackageCreate(name, category)`、`IdentityRename(path, name)`、`IdentitySetCategory(path, category)`、`PackageDelete(path)`。身份包分类/改名/删除均为 **manifest 级（目录路径永不变）**；删除 = 移到 `<workspace>/.trash/<名>-<时间戳>`（可手动找回，非物理删除）。

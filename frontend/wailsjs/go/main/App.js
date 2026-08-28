@@ -34,6 +34,14 @@ export function EditDirection(arg1, arg2, arg3) {
   return window['go']['main']['App']['EditDirection'](arg1, arg2, arg3);
 }
 
+export function EnhanceSettingsGet() {
+  return window['go']['main']['App']['EnhanceSettingsGet']();
+}
+
+export function EnhanceSettingsSet(arg1, arg2) {
+  return window['go']['main']['App']['EnhanceSettingsSet'](arg1, arg2);
+}
+
 export function ExportCreate(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportCreate'](arg1, arg2, arg3);
 }
@@ -150,6 +158,10 @@ export function PresetCatalog() {
   return window['go']['main']['App']['PresetCatalog']();
 }
 
+export function ProviderAdd(arg1) {
+  return window['go']['main']['App']['ProviderAdd'](arg1);
+}
+
 export function ProviderConfigGet(arg1) {
   return window['go']['main']['App']['ProviderConfigGet'](arg1);
 }
@@ -162,12 +174,40 @@ export function ProviderList() {
   return window['go']['main']['App']['ProviderList']();
 }
 
+export function ProviderModels(arg1) {
+  return window['go']['main']['App']['ProviderModels'](arg1);
+}
+
+export function ProviderModelsDraft(arg1) {
+  return window['go']['main']['App']['ProviderModelsDraft'](arg1);
+}
+
+export function ProviderOptions(arg1) {
+  return window['go']['main']['App']['ProviderOptions'](arg1);
+}
+
+export function ProviderPresets() {
+  return window['go']['main']['App']['ProviderPresets']();
+}
+
+export function ProviderRemove(arg1) {
+  return window['go']['main']['App']['ProviderRemove'](arg1);
+}
+
 export function ProviderSetActive(arg1) {
   return window['go']['main']['App']['ProviderSetActive'](arg1);
 }
 
 export function ProviderStats() {
   return window['go']['main']['App']['ProviderStats']();
+}
+
+export function ProviderTest(arg1) {
+  return window['go']['main']['App']['ProviderTest'](arg1);
+}
+
+export function ProviderTestDraft(arg1) {
+  return window['go']['main']['App']['ProviderTestDraft'](arg1);
 }
 
 export function ProviderValidate(arg1) {
@@ -196,6 +236,10 @@ export function TaskResumeAll() {
 
 export function TaskRetry(arg1) {
   return window['go']['main']['App']['TaskRetry'](arg1);
+}
+
+export function VideoExtractionConfig(arg1) {
+  return window['go']['main']['App']['VideoExtractionConfig'](arg1);
 }
 
 export function WorkspaceEnsureDefault() {

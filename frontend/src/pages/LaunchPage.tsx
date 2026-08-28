@@ -1,6 +1,6 @@
 // 启动页 v2：右上角「创建/工作区」按钮 + 弹窗；身份包卡片网格；
 // 卡片可拖到左侧分类改分类；分类右键删除（其下包自动归「未分类」）。
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, FormEvent, MouseEvent } from "react";
 import {
   deletePackage,
@@ -11,8 +11,9 @@ import {
 } from "../api/client";
 import { useSession } from "../state/SessionContext";
 import { useTheme } from "../theme/ThemeProvider";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { SettingsPanel } from "../components/SettingsPanel";
+import type { SettingsPanelHandle } from "../components/SettingsPanel";
 import "./LaunchPage.css";
 
 /** 未分类的语义值（空字符串） */
@@ -39,6 +40,7 @@ export function LaunchPage() {
   const { workspace, packages, loading, error, open, create, setError, switchWorkspace, migrateWorkspace, refreshList } = useSession();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const settingsHandle = useRef<SettingsPanelHandle>({ open: () => undefined });
 
   // 弹窗可见性
   const [createOpen, setCreateOpen] = useState(false);
@@ -56,6 +58,8 @@ export function LaunchPage() {
   const [dragOverCat, setDragOverCat] = useState<string | null>(null);
   const [catMenuFor, setCatMenuFor] = useState<string | null>(null); // 卡片分类下拉当前打开的包路径
   const [createCatOpen, setCreateCatOpen] = useState(false); // 创建弹窗分类下拉
+  const createCatRef = useRef<HTMLDivElement>(null); // 创建弹窗分类按钮容器（用于 fixed 下拉定位）
+  const [createCatPos, setCreateCatPos] = useState<{ left: number; top: number; width: number } | null>(null);
 
   // 改名 / 删除
   const [renamePath, setRenamePath] = useState<string | null>(null);
@@ -176,7 +180,7 @@ export function LaunchPage() {
     };
   }, [catMenuFor]);
 
-  // 创建弹窗分类下拉：点击外部 / Esc 关闭
+  // 创建弹窗分类下拉：点击外部 / Esc / 滚动 关闭
   useEffect(() => {
     if (!createCatOpen) return;
     const close = () => setCreateCatOpen(false);
@@ -185,9 +189,11 @@ export function LaunchPage() {
     };
     window.addEventListener("click", close);
     window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true); // 页面/弹窗滚动时收起，避免 fixed 菜单错位
     return () => {
       window.removeEventListener("click", close);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
     };
   }, [createCatOpen]);
 
@@ -303,7 +309,7 @@ export function LaunchPage() {
 
   const emptyHint =
     packages.length === 0
-      ? "工作区中还没有身份包 —— 点右上角「＋ 创建」开始"
+      ? "工作区中还没有身份包 —— 点右上角「＋ 创建身份包」开始"
       : category === UNCATEGORIZED
         ? "未分类中没有身份包 —— 把卡片拖到左侧分类，或新建一个"
         : "该分类下还没有身份包 —— 把卡片拖到这里，或点右上角创建";
@@ -311,17 +317,19 @@ export function LaunchPage() {
     <div className="launch">
       <header className="launch__header">
         <div className="launch__title">
-          <h1 className="launch__logo mono">OFrame Character</h1>
+          <h1 className="launch__logo">OFrame Character</h1>
           <div className="launch__subtitle">角色动画资产工作台</div>
         </div>
         <div className="launch__header-actions">
           <button className="pixel-btn pixel-btn--primary" onClick={() => setCreateOpen(true)}>
-            ＋ 创建
+            ＋ 创建身份包
           </button>
           <button className="pixel-btn" onClick={() => setWorkspaceOpen(true)}>
-            工作区
+            切换工作区
           </button>
-          <ThemeToggle />
+          <button className="pixel-btn" onClick={() => settingsHandle.current.open()} aria-label="打开设置" title="设置：provider / 密钥 / 统计">
+            设置
+          </button>
         </div>
       </header>
 
@@ -336,7 +344,7 @@ export function LaunchPage() {
               return (
                 <li key={name}>
                   <button
-                    className={`pixel-btn launch__cat${category === name ? " pixel-btn--primary" : ""}${dragOverCat === name ? " launch__cat--drop" : ""}`}
+                    className={`pixel-btn launch__cat${category === name ? " launch__cat--active" : ""}${dragOverCat === name ? " launch__cat--drop" : ""}`}
                     onClick={() => setCategory(name)}
                     onContextMenu={(e) => (name === ALL || name === UNCATEGORIZED ? undefined : openCatMenu(e, name))}
                     onDragOver={(e) => {
@@ -429,7 +437,7 @@ export function LaunchPage() {
                       </span>
                     )}
                     <span className="mono launch__item-meta">
-                      v{p.currentVersion} · f{p.formatVersion}
+                      版本 {p.currentVersion} · 格式 v{p.formatVersion}
                     </span>
                     <span className="mono launch__item-meta">
                       创建 {fmtTime(p.createdAt)} · 修改 {fmtTime(p.updatedAt)}
@@ -487,10 +495,13 @@ export function LaunchPage() {
         {appInfoText || "…"}
       </footer>
 
-      {/* 创建身份包弹窗 */}
+      {/* 创建身份包弹窗（右上角红色 ✕ 关闭，禁止点击遮罩关闭） */}
       {createOpen && (
-        <div className="modal-scrim" onClick={() => setCreateOpen(false)}>
-          <div className="pixel-panel launch-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-scrim">
+          <div className="pixel-panel launch-modal">
+            <button type="button" className="modal-close" onClick={() => setCreateOpen(false)} aria-label="关闭创建弹窗" title="关闭">
+              ✕
+            </button>
             <h3 className="mono launch-modal__title">创建身份包</h3>
             <hr className="pixel-rule" />
             <form onSubmit={handleCreate} className="col">
@@ -502,11 +513,21 @@ export function LaunchPage() {
                 maxLength={64}
                 autoFocus
               />
-              <div className="launch__catwrap" onClick={(e) => e.stopPropagation()}>
+              <div className="launch__catwrap" onClick={(e) => e.stopPropagation()} ref={createCatRef}>
                 <button
                   type="button"
                   className="pixel-btn launch__catbtn"
-                  onClick={() => setCreateCatOpen((v) => !v)}
+                  onClick={() => {
+                    const el = createCatRef.current;
+                    if (el) {
+                      const r = el.getBoundingClientRect();
+                      const h = 224; // 下拉最大高度（约 6 项），超出内部滚动
+                      let top = r.bottom + 6;
+                      if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6); // 底部放不下则向上弹
+                      setCreateCatPos({ left: r.left, top, width: r.width });
+                    }
+                    setCreateCatOpen((v) => !v);
+                  }}
                   aria-haspopup="listbox"
                   aria-expanded={createCatOpen}
                 >
@@ -515,8 +536,12 @@ export function LaunchPage() {
                     ▾
                   </span>
                 </button>
-                {createCatOpen && (
-                  <div className="launch__catmenu pixel-panel" role="listbox">
+                {createCatOpen && createCatPos && (
+                  <div
+                    className="launch__catmenu launch__catmenu--fixed pixel-panel"
+                    role="listbox"
+                    style={{ left: createCatPos.left, top: createCatPos.top, width: createCatPos.width }}
+                  >
                     {[
                       UNCATEGORIZED,
                       ...categories
@@ -544,19 +569,19 @@ export function LaunchPage() {
                 <button type="submit" className="pixel-btn pixel-btn--primary" disabled={busy === "create" || !createName.trim()}>
                   {busy === "create" ? "创建中…" : "创建并进入工作台"}
                 </button>
-                <button type="button" className="pixel-btn" onClick={() => setCreateOpen(false)}>
-                  取消
-                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* 工作区设置弹窗 */}
+      {/* 工作区设置弹窗（右上角红色 ✕ 关闭，禁止点击遮罩关闭） */}
       {workspaceOpen && (
-        <div className="modal-scrim" onClick={() => setWorkspaceOpen(false)}>
-          <div className="pixel-panel launch-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-scrim">
+          <div className="pixel-panel launch-modal">
+            <button type="button" className="modal-close" onClick={() => setWorkspaceOpen(false)} aria-label="关闭工作区弹窗" title="关闭">
+              ✕
+            </button>
             <h3 className="mono launch-modal__title">工作区设置</h3>
             <hr className="pixel-rule" />
             <div className="row">
@@ -578,9 +603,6 @@ export function LaunchPage() {
                 onClick={handleSwitchClick}
               >
                 {busy === "workspace" ? "切换中…" : "切换到此工作区"}
-              </button>
-              <button className="pixel-btn" onClick={() => setWorkspaceOpen(false)}>
-                关闭
               </button>
             </div>
             <div className="faint launch__hint">
@@ -664,6 +686,9 @@ export function LaunchPage() {
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* 全局设置面板 — 启动页也可打开（主题切换已收拢到此面板内） */}
+      <SettingsPanel handle={settingsHandle.current} />
     </div>
   );
 }

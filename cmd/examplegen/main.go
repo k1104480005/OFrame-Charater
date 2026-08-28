@@ -146,11 +146,10 @@ func run(outDir, name, exportsBase string, force bool) error {
 		return err
 	}
 
-	// 2) provider 密钥（本地保存；合成传输不产生真实调用）
-	cfg, err := svc.ProviderConfig(provider.ProviderDoubao)
-	if err != nil {
-		return err
-	}
+	// 2) provider 密钥（本地保存；合成传输不产生真实调用）。Fresh stores carry
+	// no provider cards (人工验收更新) — SaveProviderConfig registers doubao
+	// on demand.
+	cfg := provider.DefaultConfig(provider.ProviderDoubao)
 	cfg.APIKey = "examplegen-local"
 	if err := svc.SaveProviderConfig(provider.ProviderDoubao, cfg); err != nil {
 		return err

@@ -10,6 +10,8 @@ import {
   CurrentPackage,
   DirectionPreview,
   EditDirection,
+  EnhanceSettingsGet,
+  EnhanceSettingsSet,
   ExportCreate,
   ExportHistory,
   ExportValidate,
@@ -37,11 +39,19 @@ import {
   PackageOpen,
   PickMaterialFile,
   PresetCatalog,
+  ProviderAdd,
   ProviderConfigGet,
   ProviderConfigSave,
   ProviderList,
+  ProviderModels,
+  ProviderModelsDraft,
+  ProviderOptions,
+  ProviderPresets,
+  ProviderRemove,
   ProviderSetActive,
   ProviderStats,
+  ProviderTest,
+  ProviderTestDraft,
   ProviderValidate,
   RollbackTo,
   TaskAbandon,
@@ -49,6 +59,7 @@ import {
   TaskList,
   TaskResumeAll,
   TaskRetry,
+  VideoExtractionConfig,
   WorkspaceEnsureDefault,
   WorkspaceList,
   WorkspaceOpen,
@@ -89,6 +100,11 @@ export type PreviewFrameView = main.PreviewFrameView;
 export type PromptSnapshotView = main.PromptSnapshotView;
 export type ProviderConfigView = main.ProviderConfigView;
 export type ProviderInfoView = main.ProviderInfoView;
+export type ProviderPresetView = main.ProviderPresetView;
+export type ProviderOptionView = main.ProviderOptionView;
+export type ProviderTestView = main.ProviderTestView;
+export type EnhanceSettingsView = main.EnhanceSettingsView;
+export type VideoExtractionConfigView = main.VideoExtractionConfigView;
 export type StatView = main.StatView;
 export type StatsView = main.StatsView;
 export type StrategyView = main.StrategyView;
@@ -247,12 +263,66 @@ export async function setActiveProvider(id: string): Promise<void> {
   return ProviderSetActive(id);
 }
 
+/** register a new custom OpenAI-compatible provider (settings preset; id may be empty) */
+export async function addProvider(cfg: ProviderConfigView): Promise<ProviderInfoView> {
+  return ProviderAdd(cfg);
+}
+
+/** delete a custom provider (built-ins are refused by the backend) */
+export async function removeProvider(id: string): Promise<void> {
+  return ProviderRemove(id);
+}
+
+/** live connection test against the provider's /models endpoint */
+export async function testProvider(id: string): Promise<ProviderTestView> {
+  return ProviderTest(id);
+}
+
+/** fetch the model ids exposed by the provider's /models endpoint */
+export async function fetchProviderModels(id: string): Promise<string[]> {
+  return ProviderModels(id);
+}
+
 export async function validateProvider(id: string): Promise<string> {
   return ProviderValidate(id);
 }
 
 export async function fetchProviderStats(): Promise<StatsView> {
   return ProviderStats();
+}
+
+/** seven FrameBaker quick-preset descriptions (backend-owned defaults; task 4.1/5.1) */
+export async function fetchProviderPresets(): Promise<ProviderPresetView[]> {
+  return ProviderPresets();
+}
+
+/** connection test against UNSAVED form values — persists nothing (task 4.2/5.3) */
+export async function testProviderDraft(cfg: ProviderConfigView): Promise<ProviderTestView> {
+  return ProviderTestDraft(cfg);
+}
+
+/** model discovery against UNSAVED form values — persists nothing (task 4.3/5.3) */
+export async function fetchProviderModelsDraft(cfg: ProviderConfigView): Promise<string[]> {
+  return ProviderModelsDraft(cfg);
+}
+
+/** capability-filtered provider/model choices ("image" | "video" | "text"; task 4.4) */
+export async function fetchProviderOptions(capability: string): Promise<ProviderOptionView[]> {
+  return ProviderOptions(capability);
+}
+
+/** prompt-enhancement association (provider + text model; task 5.5) */
+export async function fetchEnhanceSettings(): Promise<EnhanceSettingsView> {
+  return EnhanceSettingsGet();
+}
+
+export async function setEnhanceSettings(providerId: string, model: string): Promise<void> {
+  return EnhanceSettingsSet(providerId, model);
+}
+
+/** read-only video-model config of a provider; Supported stays false until the video pipeline lands (task 6.2) */
+export async function fetchVideoExtractionConfig(id: string): Promise<VideoExtractionConfigView> {
+  return VideoExtractionConfig(id);
 }
 
 // --- PerfectPixel presets (四个风格预设 + 动作预设) ---
