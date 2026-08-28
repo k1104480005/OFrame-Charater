@@ -39,12 +39,12 @@ export function MainScreen() {
         </div>
         <div className="main__header-actions">
           <button className="pixel-btn" onClick={() => drawerHandle.current.open()} aria-label="打开任务抽屉">
-            TASKS
+            任务
           </button>
           <button className="pixel-btn" onClick={() => settingsHandle.current.open()} aria-label="打开设置" title="设置：provider / 密钥 / 统计">
             设置
           </button>
-          <button className="pixel-btn" onClick={() => void close()} title="返回启动页">
+          <button className="pixel-btn pixel-btn--warn" onClick={() => void close()} title="返回启动页">
             返回
           </button>
         </div>
