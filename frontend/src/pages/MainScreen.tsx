@@ -31,7 +31,7 @@ export function MainScreen() {
     <div className="main">
       <header className="main__header">
         <div className="main__title">
-          <span className="main__logo">OFrame</span>
+          <span className="main__logo">工作台</span>
           <span className="main__pkg">{pkg?.name ?? "—"}</span>
           <span className="faint main__pkg-meta">
             {pkg ? `版本 ${pkg.currentVersion} · 格式 v${pkg.formatVersion}` : ""}
