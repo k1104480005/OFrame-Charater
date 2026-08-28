@@ -8,6 +8,7 @@ import (
 
 	"github.com/oframe/character-workbench/core/provider"
 	"github.com/oframe/character-workbench/core/settings"
+	"github.com/oframe/character-workbench/core/workspace"
 )
 
 // newTestApp builds an App pointed at a temp workspace so binding tests run
@@ -27,7 +28,12 @@ func newTestApp(t *testing.T, client *http.Client) (*App, string) {
 	// Seed the classic built-in trio for binding tests (人工验收更新: fresh
 	// installs start EMPTY — most tests here assume a pre-configured doubao).
 	seedAppProviders(t, app.settingsDir)
-	info, err := app.WorkspaceOpen(wsRoot)
+	ws, err := workspace.Init(wsRoot)
+	if err != nil {
+		t.Fatalf("workspace init: %v", err)
+	}
+	app.ws = ws
+	info, err := app.workspaceInfo(ws)
 	if err != nil {
 		t.Fatalf("WorkspaceOpen: %v", err)
 	}

@@ -248,9 +248,9 @@ func (a *App) ensureWorkspace() (*workspace.Workspace, error) {
 		}
 	}
 	a.ws = ws
-	// Seed the persisted choice only when the user hasn't chosen one yet, so a
-	// later explicit selection is never overwritten.
-	if cfg, cerr := workspace.LoadConfig(); cerr == nil && cfg.Path == "" {
+	// Seed the default choice, and repair a stale persisted path after falling
+	// back, so a removed temporary workspace cannot capture future launches.
+	if cfg, cerr := workspace.LoadConfig(); cerr == nil && cfg.Path != ws.Root() {
 		_ = workspace.SaveConfig(workspace.Config{Path: ws.Root()})
 	}
 	a.log.Info("default workspace ensured", "path", ws.Root())

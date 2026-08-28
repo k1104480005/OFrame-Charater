@@ -97,7 +97,11 @@ func SaveConfig(c Config) error {
 // workspace-settings requirement to default off the system drive.
 func PreferredDefaultPath() (string, error) {
 	if cfg, err := LoadConfig(); err == nil && cfg.Path != "" {
-		return cfg.Path, nil
+		if info, statErr := os.Stat(cfg.Path); statErr == nil && info.IsDir() {
+			return cfg.Path, nil
+		}
+		// A stale path (for example, a removed test or temporary directory)
+		// must not become a newly-created empty workspace on the next launch.
 	}
 	home, err := DefaultPath()
 	if err != nil {

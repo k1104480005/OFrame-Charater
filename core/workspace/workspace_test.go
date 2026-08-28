@@ -200,15 +200,19 @@ func TestPreferredDefaultPath(t *testing.T) {
 	defer func() { configPathResolver = prev }()
 
 	// When a choice is persisted, it wins regardless of drives.
-	if err := SaveConfig(Config{Path: `/chosen/ws`}); err != nil {
+	chosen := filepath.Join(t.TempDir(), "chosen-ws")
+	if err := os.MkdirAll(chosen, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveConfig(Config{Path: chosen}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := PreferredDefaultPath()
 	if err != nil {
 		t.Fatalf("PreferredDefaultPath: %v", err)
 	}
-	if p != `/chosen/ws` {
-		t.Errorf("PreferredDefaultPath = %q, want /chosen/ws", p)
+	if p != chosen {
+		t.Errorf("PreferredDefaultPath = %q, want %q", p, chosen)
 	}
 
 	// No choice: falls back to a path ending in the default workspace name.
