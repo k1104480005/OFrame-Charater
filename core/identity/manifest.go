@@ -61,14 +61,17 @@ const InitialVersionID = "v1"
 // IdentityMeta is the identity definition metadata carried by the manifest
 // (task 1.4: 身份元数据; task 2.3: 文字描述/素材入口写入元数据).
 type IdentityMeta struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Category        string    `json:"category,omitempty"`        // 主页分类管理（空=未分类）
-	Description     string    `json:"description,omitempty"`     // 文字描述入口
-	EntryKind       string    `json:"entryKind,omitempty"`       // text | reference_image | sprite
-	EntryMaterialID string    `json:"entryMaterialId,omitempty"` // 素材区引用（参考图/精灵入口）
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Category            string    `json:"category,omitempty"`            // 主页分类管理（空=未分类）
+	Description         string    `json:"description,omitempty"`         // 文字描述入口
+	EntryKind           string    `json:"entryKind,omitempty"`           // text | reference_image | sprite
+	EntryMaterialID     string    `json:"entryMaterialId,omitempty"`     // 素材区引用（参考图/精灵入口）
+	BaseCharacter       string    `json:"baseCharacter,omitempty"`       // adopted base-character candidate id
+	BaseCharacterSource  string    `json:"baseCharacterSource,omitempty"` // immutable: ai | import
+	PerfectPixelStandard bool      `json:"perfectPixelStandard,omitempty"` // explicit 256px processing mode
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 // CoordinateRange is a closed integer coordinate range [XMin,XMax]×[YMin,YMax].
@@ -209,13 +212,14 @@ type Versions struct {
 // identity metadata, logical canvas, anchors, asset references, and references
 // to candidate history and operation logs.
 type Manifest struct {
-	FormatVersion int          `json:"formatVersion"`
-	Identity      IdentityMeta `json:"identity"`
-	LogicalCanvas *CanvasSpec  `json:"logicalCanvas,omitempty"`
-	Anchors       []Anchor     `json:"anchors,omitempty"`
-	Materials     []Material   `json:"materials,omitempty"`
-	References    References   `json:"references"`
-	Versions      Versions     `json:"versions"`
+	FormatVersion  int                      `json:"formatVersion"`
+	Identity       IdentityMeta             `json:"identity"`
+	LogicalCanvas  *CanvasSpec              `json:"logicalCanvas,omitempty"`
+	Anchors        []Anchor                 `json:"anchors,omitempty"`
+	Materials      []Material               `json:"materials,omitempty"`
+	BaseCharacters []BaseCharacterCandidate `json:"baseCharacters,omitempty"`
+	References     References               `json:"references"`
+	Versions       Versions                 `json:"versions"`
 }
 
 // Encode serializes the manifest with stable field order and indentation.

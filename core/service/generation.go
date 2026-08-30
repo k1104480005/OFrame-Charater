@@ -34,9 +34,10 @@ const (
 
 // Plan kinds (阶段 5: 生成执行链入口).
 const (
-	PlanKindGenerate   = "generate"   // 新动作/方向集生成: basic 方向 + 镜像派生
-	PlanKindReplace    = "replace"    // 验收时手动替换方向 (task 3.5)
-	PlanKindRegenerate = "regenerate" // 验收未通过后的重新生成 (task 5.6)
+	PlanKindGenerate      = "generate"       // 新动作/方向集生成: basic 方向 + 镜像派生
+	PlanKindReplace       = "replace"        // 验收时手动替换方向 (task 3.5)
+	PlanKindRegenerate    = "regenerate"     // 验收未通过后的重新生成 (task 5.6)
+	PlanKindBaseCharacter = "base-character" // identity base sprite, not a filmstrip
 )
 
 // GenerationRequest is the input for building a generation plan. Phase 3 took
@@ -45,12 +46,15 @@ const (
 // motion, plus the replacement (3.5) and regeneration (5.6) flows.
 type GenerationRequest struct {
 	PackagePath             string   `json:"packagePath"`
+	BaseCharacter           bool     `json:"baseCharacter,omitempty"`     // text-to-character single-image plan
 	MotionID                string   `json:"motionId,omitempty"`          // "" → legacy direction-count mode
 	ProviderID              string   `json:"providerId"`                  // "" → active provider (default Doubao)
 	Model                   string   `json:"model"`                       // "" → provider default
 	Directions              int      `json:"directions"`                  // 1 | 4 | 8 (legacy mode; 0 → 1)
 	DisableMirror           bool     `json:"disableMirror,omitempty"`     // legacy mode: 关闭镜像 → 所有方向独立生成
-	StylePresetID           string   `json:"stylePresetId"`               // "" → pixel_classic
+	StylePresetID           string   `json:"stylePresetId"`               // "" → pixel
+	StyleCustom             string   `json:"styleCustom,omitempty"`       // 自定义风格提示词（非空时优先于 StylePresetID）
+	Description             string   `json:"description,omitempty"`       // 本次生成的提示词覆盖；空 → 身份描述
 	ActionPresetID          string   `json:"actionPresetId"`              // "" → walk
 	FrameCount              int      `json:"frameCount"`                  // 0 → 4 (或动作已有序列帧数)
 	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`     // 0 → 3
@@ -158,6 +162,21 @@ func (r *planRegistry) setStatus(id, status string) bool {
 	return true
 }
 
+func (r *planRegistry) claimPending(id string, accept bool) (*GenerationPlan, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.plans[id]
+	if !ok || p.Status != PlanPending {
+		return p, false
+	}
+	if accept {
+		p.Status = PlanConfirmed
+	} else {
+		p.Status = PlanCancelled
+	}
+	return p, true
+}
+
 // newPlanID returns a random UUIDv4 for plan identifiers.
 func newPlanID() string {
 	var b [16]byte
@@ -194,6 +213,9 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	}
 	if err := pkg.ValidateReferenceRoles(); err != nil {
 		return nil, err
+	}
+	if req.BaseCharacter {
+		return s.prepareBaseCharacter(pkg, req)
 	}
 
 	// Provider + model (first generation defaults to Doubao).
@@ -327,8 +349,12 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	for _, o := range outbound {
 		refs = append(refs, pipeline.ReferenceImageRef{MaterialID: o.MaterialID, Role: o.Role, Name: o.Name})
 	}
+	description := pkg.Description()
+	if strings.TrimSpace(req.Description) != "" {
+		description = req.Description
+	}
 	prompt, err := pipeline.BuildPrompt(pipeline.PromptInput{
-		Description:  pkg.Description(),
+		Description:  description,
 		StylePreset:  style,
 		ActionPreset: action,
 		References:   refs,
@@ -437,20 +463,18 @@ func (s *Service) GetPlan(id string) (*GenerationPlan, error) {
 // re-submitted task reuses the cached result without any new external call
 // (task 6.4: 幂等去重).
 func (s *Service) ConfirmGeneration(ctx context.Context, planID string, accept bool) (*GenerationResult, error) {
-	plan, ok := s.plans.get(planID)
-	if !ok {
+	plan, claimed := s.plans.claimPending(planID, accept)
+	if plan == nil {
 		return nil, fmt.Errorf("service: unknown generation plan %q", planID)
 	}
-	if plan.Status != PlanPending {
+	if !claimed {
 		return nil, fmt.Errorf("service: generation plan %q is already %s", planID, plan.Status)
 	}
 	if !accept {
-		s.plans.setStatus(planID, PlanCancelled)
 		s.log.Info("generation cancelled", "plan", planID)
 		return &GenerationResult{PlanID: planID, Accepted: false, Status: PlanCancelled}, nil
 	}
 
-	s.plans.setStatus(planID, PlanConfirmed)
 	prov, err := s.registry.Get(plan.ProviderID)
 	if err != nil {
 		// The plan must not stay "confirmed": the decision is final and the
@@ -676,7 +700,7 @@ func (s *Service) runReplacement(ctx context.Context, plan *GenerationPlan, prov
 // provider call + pipeline regeneration. The outcome is appended to the
 // operation log (task 9.3).
 func (s *Service) runRegeneration(ctx context.Context, plan *GenerationPlan, prov provider.Provider, cfg provider.ProviderConfig, refs []provider.ReferenceImage) *GenerationResult {
-	res, err := s.RegenerateCandidate(ctx, plan.ID)
+	res, attempts, err := s.RegenerateCandidate(ctx, plan.ID)
 	if err != nil {
 		msg := err.Error()
 		s.plans.setStatus(plan.ID, PlanFailed)
@@ -686,12 +710,12 @@ func (s *Service) runRegeneration(ctx context.Context, plan *GenerationPlan, pro
 	s.plans.setStatus(plan.ID, PlanExecuted)
 	dr := DirectionResult{
 		Direction:   res.Candidate.Direction,
-		Attempts:    1,
+		Attempts:    attempts,
 		Bytes:       len(res.Candidate.FilmstripPNG),
 		Model:       plan.Model,
 		CandidateID: res.Candidate.ID,
 	}
-	out := &GenerationResult{PlanID: plan.ID, Accepted: true, Status: PlanExecuted, CallsMade: 1, Attempts: 1, Results: []DirectionResult{dr}}
+	out := &GenerationResult{PlanID: plan.ID, Accepted: true, Status: PlanExecuted, CallsMade: 1, Attempts: attempts, Results: []DirectionResult{dr}}
 	s.log.Info("regeneration executed", "plan", plan.ID, "candidate", res.Candidate.ID, "of", plan.RegenerateOf)
 	s.logGeneration(plan, out, version.ActionRegeneration)
 	return out
@@ -708,54 +732,58 @@ func (s *Service) runRegeneration(ctx context.Context, plan *GenerationPlan, pro
 // pipeline.Regenerate (linked to the previous candidate) → 候选落盘 →
 // CandidateSet 保留. Pipeline options derive from the plan (identity-level
 // anchors), so callers need no opts argument (阶段 5 复核: 未使用的 opts 已移除).
-func (s *Service) RegenerateCandidate(ctx context.Context, planID string) (pipeline.ProcessResult, error) {
+func (s *Service) RegenerateCandidate(ctx context.Context, planID string) (pipeline.ProcessResult, int, error) {
 	plan, ok := s.plans.get(planID)
 	if !ok {
-		return pipeline.ProcessResult{}, fmt.Errorf("service: unknown generation plan %q", planID)
+		return pipeline.ProcessResult{}, 0, fmt.Errorf("service: unknown generation plan %q", planID)
 	}
 	if plan.Status != PlanConfirmed {
-		return pipeline.ProcessResult{}, fmt.Errorf(
+		return pipeline.ProcessResult{}, 0, fmt.Errorf(
 			"service: regeneration requires a confirmed plan (PrepareGeneration → ConfirmGeneration); plan %q is %s",
 			planID, plan.Status)
 	}
 	if plan.RegenerateOf == "" {
-		return pipeline.ProcessResult{}, fmt.Errorf("service: plan %q is not a regeneration plan", planID)
+		return pipeline.ProcessResult{}, 0, fmt.Errorf("service: plan %q is not a regeneration plan", planID)
 	}
 	prev, err := s.findCandidate(plan.PackagePath, plan.RegenerateOf)
 	if err != nil {
-		return pipeline.ProcessResult{}, err
+		return pipeline.ProcessResult{}, 0, err
 	}
 
 	prov, err := s.registry.Get(plan.ProviderID)
 	if err != nil {
-		return pipeline.ProcessResult{}, err
+		return pipeline.ProcessResult{}, 0, err
 	}
 	cfg := s.settings.ProviderSettings().ConfigFor(plan.ProviderID)
 	refs, err := s.loadOutboundMaterials(plan)
 	if err != nil {
-		return pipeline.ProcessResult{}, err
+		return pipeline.ProcessResult{}, 0, err
 	}
 
-	raw, _, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
+	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
 	if err != nil {
-		return pipeline.ProcessResult{}, err
+		return pipeline.ProcessResult{}, attempts, err
 	}
 	strip, err := pipeline.DecodeFilmstrip(raw)
 	if err != nil {
-		return pipeline.ProcessResult{}, fmt.Errorf("service: decode regenerated filmstrip: %w", err)
+		return pipeline.ProcessResult{}, attempts, fmt.Errorf("service: decode regenerated filmstrip: %w", err)
 	}
 	res, err := pipeline.Regenerate(prev, strip, plan.Prompt, prev.Layout, s.processOptions(plan))
 	if err != nil {
 		// 切片/校正失败: 失败候选仍保留 (生成结果保留最佳候选而非空手返回).
 		res.Candidate.Direction = prev.Direction
-		s.persistCandidate(plan, res.Candidate)
+		if perr := s.persistCandidate(plan, res.Candidate); perr != nil {
+			return res, attempts, fmt.Errorf("service: filmstrip pipeline: %v (and candidate persist failed: %v)", err, perr)
+		}
 		s.candidatesFor(plan.PackagePath).Add(res.Candidate)
-		return res, err
+		return res, attempts, err
 	}
 	res.Candidate.Direction = prev.Direction
-	s.persistCandidate(plan, res.Candidate)
+	if err := s.persistCandidate(plan, res.Candidate); err != nil {
+		return pipeline.ProcessResult{}, attempts, fmt.Errorf("service: persist candidate: %w", err)
+	}
 	s.candidatesFor(plan.PackagePath).Add(res.Candidate)
-	return res, nil
+	return res, attempts, nil
 }
 
 // generateDirectionResult runs the provider call + filmstrip pipeline for one
@@ -832,11 +860,17 @@ func (s *Service) processFilmstrip(plan *GenerationPlan, raw []byte, dir string)
 	res, err := pipeline.ProcessFilmstrip(strip, plan.Prompt, layout, s.processOptions(plan))
 	res.Candidate.Direction = dir
 	if err != nil {
-		s.persistCandidate(plan, res.Candidate)
+		// 失败候选仍尽力保留（保留最佳候选而非空手返回）；保留失败时把原因带出，不吞错。
+		if perr := s.persistCandidate(plan, res.Candidate); perr != nil {
+			return res.Candidate, fmt.Errorf("service: filmstrip pipeline: %v (and candidate persist failed: %v)", err, perr)
+		}
 		s.candidatesFor(plan.PackagePath).Add(res.Candidate)
 		return res.Candidate, fmt.Errorf("service: filmstrip pipeline: %v", err)
 	}
-	s.persistCandidate(plan, res.Candidate)
+	if err := s.persistCandidate(plan, res.Candidate); err != nil {
+		// 成功路径落盘失败必须让任务失败，否则会出现"看似成功却无候选文件"的假成功。
+		return pipeline.Candidate{}, fmt.Errorf("service: persist candidate: %w", err)
+	}
 	s.candidatesFor(plan.PackagePath).Add(res.Candidate)
 	return res.Candidate, nil
 }
@@ -848,6 +882,16 @@ func (s *Service) processOptions(plan *GenerationPlan) pipeline.ProcessOptions {
 	opts := pipeline.ProcessOptions{}
 	if len(plan.Anchors) > 0 {
 		opts.Anchors = plan.Anchors
+	}
+	if pkg, err := identity.Open(plan.PackagePath); err == nil {
+		opts.PerfectPixelStandard = pkg.PerfectPixelStandard()
+	}
+	// 风格→调色板对齐 perfectpixel：plan.Prompt.StylePresetID（已核对字段名）
+	// 决定量化策略。
+	if size := pipeline.PaletteSizeForStyle(plan.Prompt.StylePresetID); size > 0 {
+		opts.Palette.MaxColors = size
+	} else {
+		opts.Palette.Skip = true
 	}
 	return opts
 }

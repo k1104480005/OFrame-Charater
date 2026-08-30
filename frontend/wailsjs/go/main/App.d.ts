@@ -5,6 +5,14 @@ import {assetexport} from '../models';
 
 export function AppInfo():Promise<main.AppInfo>;
 
+export function BaseCharacterAdopt(arg1:string):Promise<void>;
+
+export function BaseCharacterCandidatesGet():Promise<Array<main.BaseCharacterCandidateView>>;
+
+export function BaseCharacterImport(arg1:string):Promise<main.BaseCharacterCandidateView>;
+
+export function BaseCharacterSourceLock(arg1:string):Promise<void>;
+
 export function CandidateConsistency(arg1:boolean):Promise<main.ConsistencyScoreView>;
 
 export function CandidateDecide(arg1:string,arg2:boolean,arg3:string):Promise<main.AcceptanceDecisionView>;
@@ -13,9 +21,17 @@ export function CandidateHistory():Promise<Array<main.CandidateHistoryView>>;
 
 export function CurrentAssets():Promise<Array<main.AcceptedAssetView>>;
 
+export function CurrentModels():Promise<main.CurrentModelsView>;
+
 export function CurrentPackage():Promise<main.PackageSummary>;
 
 export function DirectionPreview(arg1:string,arg2:string):Promise<main.CandidatePreviewView>;
+
+export function DraftClear():Promise<void>;
+
+export function DraftGet():Promise<main.DraftView>;
+
+export function DraftPut(arg1:main.DraftInput):Promise<void>;
 
 export function EditDirection(arg1:string,arg2:string,arg3:Array<main.EditInstructionView>):Promise<main.EditResultView>;
 
@@ -41,9 +57,19 @@ export function IdentityAddAnchorPreset(arg1:string,arg2:string):Promise<main.An
 
 export function IdentityAnchorPresets():Promise<Array<main.AnchorPresetView>>;
 
+export function IdentityDeleteAnchor(arg1:string):Promise<void>;
+
+export function IdentityEnhanceDescription(arg1:string):Promise<string>;
+
 export function IdentityGet():Promise<main.IdentityView>;
 
 export function IdentityImportMaterial(arg1:string,arg2:string,arg3:string,arg4:string):Promise<main.MaterialView>;
+
+export function IdentityMaterialImage(arg1:string):Promise<main.MaterialImageView>;
+
+export function IdentityMaterialThumbs():Promise<Array<main.MaterialThumbView>>;
+
+export function IdentityRemoveMaterial(arg1:string):Promise<void>;
 
 export function IdentityRename(arg1:string,arg2:string):Promise<void>;
 
@@ -52,6 +78,10 @@ export function IdentitySetCanvas(arg1:number,arg2:number):Promise<void>;
 export function IdentitySetCategory(arg1:string,arg2:string):Promise<void>;
 
 export function IdentitySetDescription(arg1:string):Promise<void>;
+
+export function IdentitySetMainReference(arg1:string):Promise<main.MaterialView>;
+
+export function IdentitySetPerfectPixelStandard(arg1:boolean):Promise<void>;
 
 export function MotionCreate(arg1:string,arg2:number,arg3:boolean):Promise<main.MotionView>;
 

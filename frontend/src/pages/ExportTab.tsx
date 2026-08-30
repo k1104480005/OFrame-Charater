@@ -20,6 +20,7 @@ import {
 } from "../api/client";
 import { PixelCanvas } from "../components/PixelCanvas";
 import { useSession } from "../state/SessionContext";
+import { useWork } from "../state/WorkContext";
 import "./ExportTab.css";
 
 const TARGETS = [
@@ -36,12 +37,13 @@ const ORIGIN_LABEL: Record<string, string> = {
 
 export function ExportTab() {
   const { pkg } = useSession();
+  // 检视对象来自共享工作上下文：导出页选中的动作/方向与制作/验收/编辑一致。
+  const { motionId, direction, selectMotion, selectDirection } = useWork();
   const [assets, setAssets] = useState<AcceptedAssetView[]>([]);
   const [motions, setMotions] = useState<MotionView[]>([]);
   const [history, setHistory] = useState<ExportHistoryRecord[]>([]);
 
-  // 检视：选中资产（motionId+direction）→ 帧序列 + 锚点清单 + PixelPerfect 预览
-  const [selected, setSelected] = useState<string>(""); // "motionId\ndirection"
+  // 检视：当前上下文对象 → 帧序列 + 锚点清单 + PixelPerfect 预览
   const [preview, setPreview] = useState<CandidatePreviewView | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [showAnchors, setShowAnchors] = useState(true);
@@ -81,22 +83,23 @@ export function ExportTab() {
   );
 
   const selectedAsset = useMemo(() => {
-    const [mid, dir] = selected.split("\u0000");
-    return assets.find((a) => a.motionId === mid && a.direction === dir) ?? null;
-  }, [assets, selected]);
+    return assets.find((a) => a.motionId === motionId && a.direction === direction) ?? null;
+  }, [assets, motionId, direction]);
 
   const inspect = useCallback(
-    async (motionId: string, direction: string) => {
-      setSelected(`${motionId}\u0000${direction}`);
+    async (mid: string, dir: string) => {
+      // 深链：把检视对象写入共享上下文（一次选择，所有视图同步）。
+      selectMotion(mid);
+      selectDirection(dir);
       try {
-        const p = await fetchDirectionPreview(motionId, direction);
+        const p = await fetchDirectionPreview(mid, dir);
         setPreview(p);
         setError(null);
       } catch (e) {
         setError(String(e));
       }
     },
-    [],
+    [selectMotion, selectDirection],
   );
 
   const run = async (key: string, fn: () => Promise<void>) => {

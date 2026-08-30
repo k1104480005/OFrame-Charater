@@ -61,6 +61,30 @@ func magentaFrame(w, h int) *image.RGBA {
 	return img
 }
 
+func TestPerfectPixelCompatibilityDefaults(t *testing.T) {
+	standard, err := identity.NewCanvasSpec(PerfectPixelCellSize, PerfectPixelCellSize)
+	if err != nil {
+		t.Fatalf("standard canvas: %v", err)
+	}
+	if !IsPerfectPixelCanvas(*standard) {
+		t.Fatal("256x256 should be recognized as the PerfectPixel canvas")
+	}
+	got := effectiveAlignOptions(FrameList{Canvas: *standard}, AlignOptions{}, true)
+	if got.BaselineY != PerfectPixelCellSize-PerfectPixelSafeMargin {
+		t.Fatalf("PerfectPixel baseline = %d, want %d", got.BaselineY, PerfectPixelCellSize-PerfectPixelSafeMargin)
+	}
+	custom, err := identity.NewCanvasSpec(128, 128)
+	if err != nil {
+		t.Fatalf("custom canvas: %v", err)
+	}
+	if IsPerfectPixelCanvas(*custom) {
+		t.Fatal("128x128 should not be recognized as the PerfectPixel canvas")
+	}
+	if got := effectiveAlignOptions(FrameList{Canvas: *custom}, AlignOptions{}, false); got.BaselineY != 0 {
+		t.Fatalf("custom baseline = %d, want untouched zero default", got.BaselineY)
+	}
+}
+
 func TestProcessFilmstripFullPipeline(t *testing.T) {
 	strip, layout, prompt := buildSyntheticStrip(t)
 	res, err := ProcessFilmstrip(strip, prompt, layout, ProcessOptions{})
@@ -150,6 +174,64 @@ func TestProcessFilmstripFullPipeline(t *testing.T) {
 			t.Errorf("frame %d displaced by (%d,%d) does not reproduce the aligned frame", i, tr.Dx, tr.Dy)
 		}
 	}
+}
+
+func TestProcessFilmstripPaletteOptions(t *testing.T) {
+	canvas, err := identity.NewCanvasSpec(32, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := NormalizeFrameList(*canvas, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := magentaFrame(32, 32)
+	for i := 0; i < 20; i++ {
+		x0 := 6 + (i%5)*4
+		y0 := 6 + (i/5)*4
+		c := color.RGBA{R: uint8(i * 10), G: uint8(255 - i*10), B: uint8(i * 7), A: 255}
+		for y := y0; y < y0+4; y++ {
+			for x := x0; x < x0+4; x++ {
+				frame.SetRGBA(x, y, c)
+			}
+		}
+	}
+	strip, err := AssembleFilmstrip([]*image.RGBA{frame}, layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prompt, err := BuildPrompt(PromptInput{StylePreset: StylePresetRetro16, ActionPreset: ActionIdle, CanvasWidth: 32, CanvasHeight: 32, FrameCount: 1, Directions: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	quantized, err := ProcessFilmstrip(strip, prompt, layout, ProcessOptions{Palette: PaletteOptions{MaxColors: 16}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := opaqueColorCount(quantized.Candidate.Frames[0]); got > 16 {
+		t.Fatalf("quantized opaque colors = %d, want <= 16", got)
+	}
+	skipped, err := ProcessFilmstrip(strip, prompt, layout, ProcessOptions{Palette: PaletteOptions{Skip: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := opaqueColorCount(skipped.Candidate.Frames[0]); got <= 16 {
+		t.Fatalf("skipped opaque colors = %d, want > 16", got)
+	}
+}
+
+func opaqueColorCount(frame *image.RGBA) int {
+	colors := map[color.RGBA]struct{}{}
+	b := frame.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := frame.RGBAAt(x, y)
+			if c.A != 0 {
+				colors[c] = struct{}{}
+			}
+		}
+	}
+	return len(colors)
 }
 
 // framesPixelEqual reports whether two frames are pixel-identical.

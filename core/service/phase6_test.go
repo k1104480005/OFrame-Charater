@@ -35,7 +35,7 @@ func newPhase6Svc(t *testing.T) (*Service, string) {
 func TestConfirmGenerationPersistsTask(t *testing.T) {
 	svc, root := newPhase6Svc(t)
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 1, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 1, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestTaskResumeAllAfterInterruption(t *testing.T) {
 	configureDoubaoKey(t, svc)
 
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 1, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 1, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func TestTaskDedupReusesCachedResult(t *testing.T) {
 	configureDoubaoKey(t, svc)
 
 	req := GenerationRequest{
-		PackagePath: root, Directions: 1, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 1, StylePresetID: "pixel", ActionPresetID: "walk",
 	}
 	p1, err := svc.PrepareGeneration(context.Background(), req)
 	if err != nil {
@@ -191,7 +191,7 @@ func TestTaskDedupReusesCachedResult(t *testing.T) {
 
 	// A DIFFERENT task (different frame count) is NOT deduplicated.
 	p3, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 1, FrameCount: 8, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 1, FrameCount: 8, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -283,7 +283,7 @@ func acceptThresholdSvc(t *testing.T) (*Service, string, string) {
 		t.Fatal(err)
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -398,7 +398,7 @@ func TestOperationLogAppendOnly(t *testing.T) {
 
 	// Mirror replacement → a third entry with the replaced direction.
 	repl, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: mID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: mID, StylePresetID: "pixel", ActionPresetID: "walk",
 		ReplaceDirections: []string{motion.DirectionLeft},
 	})
 	if err != nil {
@@ -427,7 +427,7 @@ func TestRollbackRestoresContentAndPreservesLog(t *testing.T) {
 	}
 	// Mirror replacement changes the motion content (left origin → replaced).
 	repl, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: mID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: mID, StylePresetID: "pixel", ActionPresetID: "walk",
 		ReplaceDirections: []string{motion.DirectionLeft},
 	})
 	if err != nil {
@@ -513,7 +513,7 @@ func TestCandidateConsistencyLocalAndAI(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, err := svcAI.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: aiRoot, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: aiRoot, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)

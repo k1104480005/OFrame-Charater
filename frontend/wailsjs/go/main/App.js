@@ -6,6 +6,22 @@ export function AppInfo() {
   return window['go']['main']['App']['AppInfo']();
 }
 
+export function BaseCharacterAdopt(arg1) {
+  return window['go']['main']['App']['BaseCharacterAdopt'](arg1);
+}
+
+export function BaseCharacterCandidatesGet() {
+  return window['go']['main']['App']['BaseCharacterCandidatesGet']();
+}
+
+export function BaseCharacterImport(arg1) {
+  return window['go']['main']['App']['BaseCharacterImport'](arg1);
+}
+
+export function BaseCharacterSourceLock(arg1) {
+  return window['go']['main']['App']['BaseCharacterSourceLock'](arg1);
+}
+
 export function CandidateConsistency(arg1) {
   return window['go']['main']['App']['CandidateConsistency'](arg1);
 }
@@ -22,12 +38,28 @@ export function CurrentAssets() {
   return window['go']['main']['App']['CurrentAssets']();
 }
 
+export function CurrentModels() {
+  return window['go']['main']['App']['CurrentModels']();
+}
+
 export function CurrentPackage() {
   return window['go']['main']['App']['CurrentPackage']();
 }
 
 export function DirectionPreview(arg1, arg2) {
   return window['go']['main']['App']['DirectionPreview'](arg1, arg2);
+}
+
+export function DraftClear() {
+  return window['go']['main']['App']['DraftClear']();
+}
+
+export function DraftGet() {
+  return window['go']['main']['App']['DraftGet']();
+}
+
+export function DraftPut(arg1) {
+  return window['go']['main']['App']['DraftPut'](arg1);
 }
 
 export function EditDirection(arg1, arg2, arg3) {
@@ -78,12 +110,32 @@ export function IdentityAnchorPresets() {
   return window['go']['main']['App']['IdentityAnchorPresets']();
 }
 
+export function IdentityDeleteAnchor(arg1) {
+  return window['go']['main']['App']['IdentityDeleteAnchor'](arg1);
+}
+
+export function IdentityEnhanceDescription(arg1) {
+  return window['go']['main']['App']['IdentityEnhanceDescription'](arg1);
+}
+
 export function IdentityGet() {
   return window['go']['main']['App']['IdentityGet']();
 }
 
 export function IdentityImportMaterial(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['IdentityImportMaterial'](arg1, arg2, arg3, arg4);
+}
+
+export function IdentityMaterialImage(arg1) {
+  return window['go']['main']['App']['IdentityMaterialImage'](arg1);
+}
+
+export function IdentityMaterialThumbs() {
+  return window['go']['main']['App']['IdentityMaterialThumbs']();
+}
+
+export function IdentityRemoveMaterial(arg1) {
+  return window['go']['main']['App']['IdentityRemoveMaterial'](arg1);
 }
 
 export function IdentityRename(arg1, arg2) {
@@ -100,6 +152,14 @@ export function IdentitySetCategory(arg1, arg2) {
 
 export function IdentitySetDescription(arg1) {
   return window['go']['main']['App']['IdentitySetDescription'](arg1);
+}
+
+export function IdentitySetMainReference(arg1) {
+  return window['go']['main']['App']['IdentitySetMainReference'](arg1);
+}
+
+export function IdentitySetPerfectPixelStandard(arg1) {
+  return window['go']['main']['App']['IdentitySetPerfectPixelStandard'](arg1);
 }
 
 export function MotionCreate(arg1, arg2, arg3) {

@@ -375,6 +375,24 @@
   justify-content: flex-start;
 }
 
+/* 排序控件：工具栏右侧，紧凑布局 */
+.launch__sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.launch__sort .faint {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.launch__sort select {
+  font-size: 12px;
+}
+
 .launch__footer {
   padding: var(--space-2) var(--space-4);
   border-top: var(--border-w) solid var(--border-faint);

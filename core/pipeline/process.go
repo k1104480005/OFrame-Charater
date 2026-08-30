@@ -3,20 +3,55 @@ package pipeline
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"time"
+
+	"github.com/oframe/character-workbench/core/identity"
 )
 
 // ProcessOptions collects the tunable stage options for the deterministic
 // filmstrip pipeline (tasks 5.1–5.4).
+const (
+	// PerfectPixelCellSize is the standard output cell used by perfectpixel.
+	PerfectPixelCellSize = 256
+	// PerfectPixelSafeMargin is the default extraction margin used by perfectpixel.
+	PerfectPixelSafeMargin = 24
+)
+
+// IsPerfectPixelCanvas reports whether a layout uses perfectpixel's standard cell.
+func IsPerfectPixelCanvas(canvas identity.CanvasSpec) bool {
+	return canvas.UnitWidth == PerfectPixelCellSize && canvas.UnitHeight == PerfectPixelCellSize
+}
+
+func effectiveAlignOptions(layout FrameList, opts AlignOptions, perfectPixelStandard bool) AlignOptions {
+	if perfectPixelStandard && IsPerfectPixelCanvas(layout.Canvas) && opts.BaselineY == 0 {
+		opts.BaselineY = layout.Canvas.UnitHeight - PerfectPixelSafeMargin
+	}
+	return opts
+}
+
+func effectiveGridOptions(layout FrameList, opts GridOptions, perfectPixelStandard bool) GridOptions {
+	if perfectPixelStandard && IsPerfectPixelCanvas(layout.Canvas) {
+		maxW := layout.Canvas.UnitWidth - PerfectPixelSafeMargin*2
+		maxH := layout.Canvas.UnitHeight - PerfectPixelSafeMargin*2
+		if maxW > 0 && maxH > 0 {
+			opts.MaxContentWidth = maxW
+			opts.MaxContentHeight = maxH
+		}
+	}
+	return opts
+}
+
 type ProcessOptions struct {
-	Slice      SliceOptions
-	Key        KeyOptions
-	Align      AlignOptions
-	Grid       GridOptions
-	Palette    PaletteOptions
-	Anchors    []AnchorPoint  // identity-level anchors (corrected per frame)
-	Targets    []AnchorPoint  // normalized target anchors (default feet bottom-center)
-	MirrorPair [2]*image.RGBA // optional cross-direction pair for symmetry scoring
+	Slice                SliceOptions
+	Key                  KeyOptions
+	Align                AlignOptions
+	Grid                 GridOptions
+	Palette              PaletteOptions
+	Anchors              []AnchorPoint  // identity-level anchors (corrected per frame)
+	Targets              []AnchorPoint  // normalized target anchors (default feet bottom-center)
+	MirrorPair           [2]*image.RGBA // optional cross-direction pair for symmetry scoring
+	PerfectPixelStandard bool           // explicit 256x256 compatibility mode
 }
 
 // ProcessResult is the outcome of one pipeline run.
@@ -72,11 +107,15 @@ func ProcessFilmstrip(strip *image.RGBA, prompt PromptSnapshot, layout FrameList
 	// (task 5.4 裁边与留白按逻辑画布对齐).
 	gridded := make([]*image.RGBA, 0, len(keyed))
 	for _, k := range keyed {
-		gridded = append(gridded, GridCorrect(k, layout.Canvas.UnitWidth, layout.Canvas.UnitHeight, opts.Grid))
+		gridOpts := effectiveGridOptions(layout, opts.Grid, opts.PerfectPixelStandard)
+		gridded = append(gridded, GridCorrect(k, layout.Canvas.UnitWidth, layout.Canvas.UnitHeight, gridOpts))
 	}
 
 	// 4. Alpha-weighted centroid alignment to the shared baseline (task 5.4).
-	aligned, transforms, err := AlignSequence(gridded, opts.Align)
+	// PerfectPixel's 256px profile keeps a 24px safety band below the content;
+	// other canvas sizes retain the existing bottom-row default.
+	alignOpts := effectiveAlignOptions(layout, opts.Align, opts.PerfectPixelStandard)
+	aligned, transforms, err := AlignSequence(gridded, alignOpts)
 	if err != nil {
 		return fail(err)
 	}
@@ -85,24 +124,38 @@ func ProcessFilmstrip(strip *image.RGBA, prompt PromptSnapshot, layout FrameList
 	targets := opts.Targets
 	if len(targets) == 0 {
 		targets = DefaultTargetAnchors(layout)
+		if IsPerfectPixelCanvas(layout.Canvas) {
+			targets[0].Y = layout.Canvas.UnitHeight - PerfectPixelSafeMargin
+		}
 	}
 	anchorSets := make([][]AnchorPoint, 0, len(transforms))
 	for _, t := range transforms {
 		anchorSets = append(anchorSets, CorrectAnchors(opts.Anchors, t))
 	}
 
-	// 6. Shared palette quantization (task 5.4).
+	// 6. Shared palette quantization (task 5.4) — per-style, skippable.
+	var final []*image.RGBA
+	var palette []color.RGBA // 使用现有调色板类型（对照 BuildSharedPalette 返回值）
 	maxColors := opts.Palette.MaxColors
-	if maxColors <= 0 {
+	if maxColors <= 0 && !opts.Palette.Skip {
 		maxColors = DefaultMaxPaletteColors
 	}
-	palette, err := BuildSharedPalette(aligned, maxColors)
-	if err != nil {
-		return fail(fmt.Errorf("pipeline: build shared palette: %w", err))
-	}
-	final, err := QuantizeToPalette(aligned, palette)
-	if err != nil {
-		return fail(fmt.Errorf("pipeline: quantize to shared palette: %w", err))
+	if opts.Palette.Skip {
+		// 评分仍需要共享调色板作为指标输入；帧保持未量化。
+		palette, err = BuildSharedPalette(aligned, DefaultMaxPaletteColors)
+		if err != nil {
+			return fail(fmt.Errorf("pipeline: build shared palette: %w", err))
+		}
+		final = aligned
+	} else {
+		palette, err = BuildSharedPalette(aligned, maxColors)
+		if err != nil {
+			return fail(fmt.Errorf("pipeline: build shared palette: %w", err))
+		}
+		final, err = QuantizeToPalette(aligned, palette)
+		if err != nil {
+			return fail(fmt.Errorf("pipeline: quantize to shared palette: %w", err))
+		}
 	}
 
 	// 7. Quality scoring (task 8.1).

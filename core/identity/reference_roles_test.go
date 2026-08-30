@@ -7,6 +7,51 @@ import (
 
 // 阶段 3 reference-image semantics: 1 主参考图 + 最多 2 辅助参考图.
 
+// TestSwapMainReference verifies the one-transaction role swap used by the
+// "设为主参考" action: the auxiliary is promoted, the current main is demoted,
+// and the 1+2 bounds still hold.
+func TestSwapMainReference(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Hero")
+	pkg, err := Create(root, "Hero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mk := func(name string) string { return writeTempFile(t, name, []byte("png")) }
+
+	main, err := pkg.AddReferenceImage(mk("m.png"), "主参考图", RoleMainReference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aux1, err := pkg.AddReferenceImage(mk("a1.png"), "辅助1", RoleAuxiliaryReference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pkg.AddReferenceImage(mk("a2.png"), "辅助2", RoleAuxiliaryReference); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := pkg.SwapMainReference(aux1.ID); err != nil {
+		t.Fatalf("SwapMainReference: %v", err)
+	}
+	got, err := pkg.Material(aux1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Role != RoleMainReference {
+		t.Errorf("aux1 role = %q, want main_reference", got.Role)
+	}
+	old, err := pkg.Material(main.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if old.Role != RoleAuxiliaryReference {
+		t.Errorf("old main role = %q, want auxiliary_reference", old.Role)
+	}
+	if err := pkg.ValidateReferenceRoles(); err != nil {
+		t.Errorf("bounds violated after swap: %v", err)
+	}
+}
+
 // TestReferenceRoleBounds verifies the role bounds: a second main reference is
 // rejected and a third auxiliary reference is rejected; the valid 1+2 layout is
 // accepted and survives a re-open.

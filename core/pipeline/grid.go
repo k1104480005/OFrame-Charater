@@ -11,9 +11,13 @@ type GridOptions struct {
 	// Step is the pixel grid step; content offsets are snapped to multiples
 	// of Step (default 1 = already on the pixel grid, no snapping).
 	Step int
-	// Margin is the integer margin kept around the content bounding box when
-	// cropping (default 0).
+	// Margin is the minimum transparent safety margin around content when
+	// fitting it into the target canvas (default 0).
 	Margin int
+	// MaxContentWidth/Height optionally constrain the opaque content box before
+	// placement; zero keeps the original behavior.
+	MaxContentWidth  int
+	MaxContentHeight int
 }
 
 // FitToCanvas fits src onto a tw×th canvas using integer-pixel rules only:
@@ -185,8 +189,23 @@ func GridCorrect(img *image.RGBA, w, h int, opts GridOptions) *image.RGBA {
 	if step <= 0 {
 		step = 1
 	}
-	content := CropToContent(img, opts.Margin)
+	content := CropToContent(img, 0)
 	sw, sh := content.Bounds().Dx(), content.Bounds().Dy()
+	if opts.MaxContentWidth > 0 && opts.MaxContentHeight > 0 && (sw > opts.MaxContentWidth || sh > opts.MaxContentHeight) {
+		scale := float64(opts.MaxContentWidth) / float64(sw)
+		if hScale := float64(opts.MaxContentHeight) / float64(sh); hScale < scale {
+			scale = hScale
+		}
+		nw, nh := int(float64(sw)*scale+0.5), int(float64(sh)*scale+0.5)
+		if nw < 1 {
+			nw = 1
+		}
+		if nh < 1 {
+			nh = 1
+		}
+		content = ScaleNearest(content, nw, nh)
+		sw, sh = nw, nh
+	}
 	dx := GridOffset((w-sw)/2, step)
 	dy := GridOffset((h-sh)/2, step)
 	return PadToCanvas(content, w, h, dx, dy)

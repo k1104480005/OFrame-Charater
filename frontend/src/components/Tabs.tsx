@@ -6,6 +6,8 @@ import "./Tabs.css";
 export interface TabDef<T extends string> {
   id: T;
   label: string;
+  /** optional emoji icon rendered before the label */
+  icon?: string;
   /** optional pixel-font accent label (title-case) */
   accent?: string;
 }
@@ -30,6 +32,7 @@ export function Tabs<T extends string>({ tabs, active, onChange, trailing, "aria
           className={`pixel-tab${active === t.id ? " pixel-tab--active" : ""}`}
           onClick={() => onChange(t.id)}
         >
+          {t.icon && <span className="pixel-tab__icon" aria-hidden="true">{t.icon}</span>}
           {t.accent && <span className="pixel-tab__accent">{t.accent}</span>}
           {t.label}
         </button>

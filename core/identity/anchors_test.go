@@ -10,8 +10,8 @@ import (
 
 func TestAnchorPresets(t *testing.T) {
 	ps := AnchorPresets()
-	if len(ps) != 4 {
-		t.Fatalf("presets = %d, want 4", len(ps))
+	if len(ps) != 7 {
+		t.Fatalf("presets = %d, want 7", len(ps))
 	}
 	names := map[string]string{}
 	for _, p := range ps {
@@ -20,8 +20,39 @@ func TestAnchorPresets(t *testing.T) {
 	if names[PresetFeet.ID] != "脚底" {
 		t.Errorf("feet preset name = %q", names[PresetFeet.ID])
 	}
-	if names[PresetHandLeft.ID] != "左手持点" || names[PresetHandRight.ID] != "右手持点" {
+	if names[PresetCenter.ID] != "画布中心" {
+		t.Errorf("center preset name = %q", names[PresetCenter.ID])
+	}
+	if names[PresetHandLeft.ID] != "左侧挂载参考点" || names[PresetHandRight.ID] != "右侧挂载参考点" {
 		t.Errorf("hand preset names wrong: %v", names)
+	}
+}
+
+func TestDeleteAnchor(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Hero")
+	pkg, err := Create(root, "Hero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.SetLogicalCanvas(16, 16); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := pkg.AddBaseCharacterCandidate("base.png", "test", "test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.AdoptBaseCharacter(candidate.ID); err != nil {
+		t.Fatal(err)
+	}
+	anchor, err := pkg.AddAnchorPreset(PresetCenter, "中心点")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.DeleteAnchor(anchor.ID); err != nil {
+		t.Fatalf("DeleteAnchor: %v", err)
+	}
+	if len(pkg.Anchors()) != 0 {
+		t.Fatalf("anchors after delete = %d, want 0", len(pkg.Anchors()))
 	}
 }
 
@@ -32,6 +63,13 @@ func TestAddAnchorPreset(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pkg.SetLogicalCanvas(16, 16); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := pkg.AddBaseCharacterCandidate("base.png", "test", "test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.AdoptBaseCharacter(candidate.ID); err != nil {
 		t.Fatal(err)
 	}
 	a, err := pkg.AddAnchorPreset(PresetFeet, "")

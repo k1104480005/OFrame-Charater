@@ -84,7 +84,7 @@ generation run [flags] --yes <pkg>          确认后执行（无 --yes 零调�
 flags:
   --directions <1|4|8>   方向策略（默认 1；8 方向 = 5 生成 + 3 镜像）
   --motion <id>          目标动作 id（批量生成落到具体动作，资产才可导出）
-  --style <id>           风格预设（默认 pixel_classic）
+  --style <id>           风格预设（默认 pixel）
   --action <id>          动作预设（默认 walk）
   --provider <id>        显式 provider（默认当前激活 provider）
   --model <name>         显式图像模型

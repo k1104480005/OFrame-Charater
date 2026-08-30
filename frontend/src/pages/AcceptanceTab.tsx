@@ -27,7 +27,9 @@ import {
 } from "../api/client";
 import { PixelCanvas } from "../components/PixelCanvas";
 import { ConfirmModal } from "../components/ConfirmModal";
+import { EditPage } from "./make/EditPage";
 import { useSession } from "../state/SessionContext";
+import { useWork } from "../state/WorkContext";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "未验收",
@@ -47,23 +49,27 @@ const ACTION_LABEL: Record<string, string> = {
 
 export function AcceptanceTab() {
   const { pkg } = useSession();
+  // 动作/方向/预览控件全部来自共享工作上下文：一次选择，所有视图同步；
+  // 局部 preview（候选帧数据）与上下文 preview（播放控件）重名，解构改名。
+  const {
+    motionId, direction, candidateId, selectMotion, selectDirection, focusCandidate,
+    preview: previewControls, setPreview: setPreviewControls, bumpPreview, previewNonce,
+  } = useWork();
   const [motions, setMotions] = useState<MotionView[]>([]);
-  const [motionId, setMotionId] = useState("");
-  const [direction, setDirection] = useState("");
   const [preview, setPreview] = useState<CandidatePreviewView | null>(null);
   const [history, setHistory] = useState<CandidateHistoryView[]>([]);
   const [assets, setAssets] = useState<AcceptedAssetView[]>([]);
   const [log, setLog] = useState<OperationLogEntryView[]>([]);
   const [score, setScore] = useState<ConsistencyScoreView | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [showGrid, setShowGrid] = useState(true);
-  const [showAnchors, setShowAnchors] = useState(true);
   const [showMatting, setShowMatting] = useState(false);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [zoom, setZoom] = useState(12);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [replacePlan, setReplacePlan] = useState<GenerationPlanView | null>(null);
   const [rollbackSeq, setRollbackSeq] = useState<number | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -91,16 +97,24 @@ export function AcceptanceTab() {
     try {
       const p = await fetchDirectionPreview(mid, dir);
       setPreview(p);
-      setPlaying(true);
+      setPreviewControls({ playing: true });
       setError(null);
     } catch (e) {
       setError(String(e));
     }
-  }, []);
+  }, [setPreviewControls]);
 
   useEffect(() => {
     if (motionId && direction) void loadPreview(motionId, direction);
   }, [motionId, direction, loadPreview]);
+
+  // 工件变更信号（生成完成/验收决策/替换/回滚）：同方向也强制重载预览，
+  // 无需用户手动重新选择（task 3.2 / workbench-context-preview spec）。
+  useEffect(() => {
+    if (previewNonce === 0) return;
+    if (motionId && direction) void loadPreview(motionId, direction);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewNonce]);
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -116,6 +130,15 @@ export function AcceptanceTab() {
 
   const motion = useMemo(() => motions.find((m) => m.id === motionId) ?? null, [motions, motionId]);
   const selectedDirection = useMemo(() => motion?.directions.find((d) => d.direction === direction) ?? null, [motion, direction]);
+  const previewFrames = preview?.frames ?? [];
+  const currentFrame = previewFrames[frameIndex];
+  const currentFps = currentFrame?.durationMs && currentFrame.durationMs > 0
+    ? Math.round(1000 / currentFrame.durationMs)
+    : 0;
+
+  useEffect(() => {
+    setFrameIndex(0);
+  }, [motionId, direction, previewNonce]);
 
   const handleDecide = (candidateId: string, confirm: boolean) =>
     run(`decide:${candidateId}`, async () => {
@@ -123,6 +146,7 @@ export function AcceptanceTab() {
       if (confirm && d.decision !== "accepted") setError(`未通过：${d.note || "评分未达阈值"}`);
       setNote("");
       await refresh();
+      bumpPreview();
       if (motionId && direction) await loadPreview(motionId, direction);
     });
 
@@ -151,6 +175,7 @@ export function AcceptanceTab() {
       await confirmGeneration(replacePlan.id, accept);
       setReplacePlan(null);
       await refresh();
+      bumpPreview();
       if (motionId && direction) await loadPreview(motionId, direction);
     });
 
@@ -169,6 +194,7 @@ export function AcceptanceTab() {
       const l = await rollbackTo(seq);
       setLog(l);
       await refresh();
+      bumpPreview();
       if (motionId && direction) await loadPreview(motionId, direction);
     });
   };
@@ -188,10 +214,7 @@ export function AcceptanceTab() {
           <select
             id="acc-motion"
             value={motionId}
-            onChange={(e) => {
-              setMotionId(e.target.value);
-              setDirection("");
-            }}
+            onChange={(e) => selectMotion(e.target.value)}
             aria-label="选择动作"
           >
             <option value="">— 选择动作 —</option>
@@ -207,7 +230,7 @@ export function AcceptanceTab() {
           <select
             id="acc-direction"
             value={direction}
-            onChange={(e) => setDirection(e.target.value)}
+            onChange={(e) => selectDirection(e.target.value)}
             aria-label="选择方向"
           >
             <option value="">— 选择方向 —</option>
@@ -219,6 +242,21 @@ export function AcceptanceTab() {
             ))}
           </select>
         </div>
+        {motion && motion.directions.length > 0 && (
+          <div className="direction-grid" aria-label="方向网格">
+            {motion.directions.map((item) => (
+              <button
+                key={item.direction}
+                className={`pixel-btn ${item.direction === direction ? "pixel-btn--primary" : ""}`}
+                onClick={() => selectDirection(item.direction)}
+                aria-label={`选择方向 ${item.direction}`}
+                title={item.origin === "mirrored" ? "镜像方向" : item.origin === "replaced" ? "替换方向" : "生成方向"}
+              >
+                {item.direction}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* PixelPerfect 预览 (task 5.5 / 10.4) */}
@@ -231,41 +269,70 @@ export function AcceptanceTab() {
             </span>
           )}
         </div>
-        <div className="row">
-          <button className="pixel-btn" disabled={!preview} onClick={() => setPlaying((p) => !p)}>
-            {playing ? "暂停" : "播放"}
+        <div className="row preview-toolbar">
+          <button className="pixel-btn" disabled={!preview} onClick={() => setPreviewControls({ playing: !previewControls.playing })}>
+            {previewControls.playing ? "暂停" : "播放"}
           </button>
-          <button className="pixel-btn" onClick={() => setShowGrid((v) => !v)}>
-            网格 {showGrid ? "开" : "关"}
+          <button className="pixel-btn" onClick={() => setPreviewControls({ showGrid: !previewControls.showGrid })}>
+            网格 {previewControls.showGrid ? "开" : "关"}
           </button>
-          <button className="pixel-btn" onClick={() => setShowAnchors((v) => !v)}>
-            锚点 {showAnchors ? "开" : "关"}
+          <button className="pixel-btn" onClick={() => setPreviewControls({ showAnchors: !previewControls.showAnchors })}>
+            锚点 {previewControls.showAnchors ? "开" : "关"}
           </button>
           <button className="pixel-btn" onClick={() => setShowMatting((v) => !v)}>
             洋红检查 {showMatting ? "开" : "关"}
           </button>
+          <button className="pixel-btn" disabled={!motionId || !direction} onClick={() => setEditOpen((open) => !open)}>
+             {editOpen ? "收起编辑" : "编辑当前资产"}
+           </button>
+           <button className="pixel-btn" disabled={zoom <= 4} onClick={() => setZoom((v) => Math.max(4, v - 2))} aria-label="缩小预览" title="缩小预览">−</button>
+          <span className="mono faint">{zoom}x</span>
+          <button className="pixel-btn" disabled={zoom >= 24} onClick={() => setZoom((v) => Math.min(24, v + 2))} aria-label="放大预览" title="放大预览">+</button>
+          {preview && <span className="mono faint">帧 {Math.min(frameIndex + 1, previewFrames.length)} / {previewFrames.length} · {currentFps} FPS</span>}
         </div>
         {preview ? (
+          <>
           <PixelCanvas
             unitWidth={preview.canvasWidth || 16}
             unitHeight={preview.canvasHeight || 16}
-            scale={12}
-            frames={(preview.frames ?? []).map((f) => ({
+            scale={zoom}
+            frameIndex={frameIndex}
+            frames={previewFrames.map((f) => ({
               png: f.png,
               durationMs: f.durationMs,
               anchors: (f.anchors ?? []).map((a) => ({ name: a.Name, x: a.X, y: a.Y })),
             }))}
-            playing={playing}
+            playing={previewControls.playing}
             showMatting={showMatting}
-            showGrid={showGrid}
-            showAnchors={showAnchors}
+            showGrid={previewControls.showGrid}
+            showAnchors={previewControls.showAnchors}
             label={direction ? `${motion?.name ?? ""} / ${direction}` : undefined}
           />
+          <label className="preview-scrubber mono" htmlFor="preview-frame">
+            <span>逐帧</span>
+            <input
+              id="preview-frame"
+              type="range"
+              min={0}
+              max={Math.max(0, previewFrames.length - 1)}
+              value={Math.min(frameIndex, Math.max(0, previewFrames.length - 1))}
+              onChange={(e) => {
+                setPreviewControls({ playing: false });
+                setFrameIndex(Number(e.target.value));
+              }}
+              disabled={previewFrames.length === 0}
+              aria-label="选择预览帧"
+            />
+            <span className="faint">{currentFrame?.durationMs ?? 0} ms</span>
+          </label>
+          </>
         ) : (
           <div className="empty-state">请选择动作和方向后查看 PixelPerfect 预览</div>
         )}
         <div className="faint">最近邻采样回放 —— 预览渲染与切片结果逐像素一致（任务 5.5）</div>
       </section>
+
+      {editOpen && motionId && direction && <EditPage />}
 
       {/* 一致性粗评分 (task 8.2: 仅参考、不阻塞) */}
       <section>
@@ -294,7 +361,15 @@ export function AcceptanceTab() {
         ) : (
           <ul className="mono gen-plan__list">
             {history.map((c) => (
-              <li key={c.id} className="row">
+              <li key={c.id} className={`row ${candidateId === c.id ? "candidate-row--current" : ""}`}>
+                <button
+                  className="pixel-btn"
+                  onClick={() => focusCandidate(c.id, c.motionId, c.direction)}
+                  aria-label={`预览候选 ${c.id.slice(0, 8)}`}
+                  title="将此候选设为当前预览对象"
+                >
+                  预览
+                </button>
                 <span className={`status-badge status-${c.status === "accepted" ? "ok" : c.status === "rejected" ? "warn" : "muted"}`}>
                   {STATUS_LABEL[c.status] ?? c.status}
                 </span>

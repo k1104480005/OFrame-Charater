@@ -74,6 +74,44 @@ func (p *Package) ImportSprite(src, name string) (*Material, error) {
 	return p.addMaterial(MaterialKindSprite, src, name, RoleSprite)
 }
 
+// RemoveMaterial deletes a material from the manifest and removes its stored
+// file inside the package materials area. If the material was the identity
+// entry basis, the entry reference is cleared (the text entry can be set again).
+func (p *Package) RemoveMaterial(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("identity: material id is required")
+	}
+	var rel string
+	if err := p.Update(func(m *Manifest) error {
+		for i, mat := range m.Materials {
+			if mat.ID != id {
+				continue
+			}
+			rel = mat.Path
+			m.Materials = append(m.Materials[:i], m.Materials[i+1:]...)
+			if m.Identity.EntryMaterialID == id {
+				m.Identity.EntryMaterialID = ""
+				if m.Identity.EntryKind == EntryKindReferenceImage || m.Identity.EntryKind == EntryKindSprite {
+					m.Identity.EntryKind = ""
+				}
+			}
+			return nil
+		}
+		return fmt.Errorf("identity: material %q not found", id)
+	}); err != nil {
+		return err
+	}
+	if rel != "" {
+		if err := os.Remove(filepath.Join(p.root, filepath.FromSlash(rel))); err != nil && !os.IsNotExist(err) {
+			// 清单已更新；文件删除失败不回滚 —— 素材已不再被引用。
+			p.log.Warn("identity material file remove failed", "path", rel, "err", err.Error())
+		}
+	}
+	p.log.Info("identity material removed", "package", p.root, "id", id)
+	return nil
+}
+
 // SetMaterialRole re-assigns the role of an existing reference-image material
 // (e.g. promoting an auxiliary reference to the main reference), enforcing the
 // 1 主参考图 + 最多 2 辅助参考图 bounds. Sprite materials cannot change role.
@@ -113,6 +151,53 @@ func (p *Package) SetMaterialRole(id string, role MaterialRole) (*Material, erro
 		return nil, err
 	}
 	p.log.Info("identity material role set", "package", p.root, "id", id, "role", role)
+	mat := m.Materials[idx]
+	return &mat, nil
+}
+
+// SwapMainReference promotes an auxiliary reference image to the main
+// reference in one transaction: the current main (if any) is demoted to
+// auxiliary, so the 1 主参考图 + 最多 2 辅助参考图 bounds always hold.
+func (p *Package) SwapMainReference(auxiliaryID string) (*Material, error) {
+	auxiliaryID = strings.TrimSpace(auxiliaryID)
+	if auxiliaryID == "" {
+		return nil, fmt.Errorf("identity: material id is required")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	idx := -1
+	for i := range p.manifest.Materials {
+		if p.manifest.Materials[i].ID == auxiliaryID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, fmt.Errorf("identity: material %q not found", auxiliaryID)
+	}
+	if p.manifest.Materials[idx].Kind != MaterialKindReferenceImage {
+		return nil, fmt.Errorf("identity: material %q is %s and cannot carry a reference role", auxiliaryID, p.manifest.Materials[idx].Kind)
+	}
+	if p.manifest.Materials[idx].Role != RoleAuxiliaryReference {
+		return nil, fmt.Errorf("identity: material %q is not an auxiliary reference", auxiliaryID)
+	}
+	m := p.manifest
+	for i := range m.Materials {
+		if i == idx {
+			m.Materials[i].Role = RoleMainReference
+		} else if m.Materials[i].Role == RoleMainReference {
+			m.Materials[i].Role = RoleAuxiliaryReference
+		}
+	}
+	if err := checkReferenceRoles(m.Materials); err != nil {
+		return nil, err
+	}
+	m.Identity.UpdatedAt = time.Now().UTC()
+	p.manifest = m
+	if err := p.saveLocked(); err != nil {
+		return nil, err
+	}
+	p.log.Info("identity main reference swapped", "package", p.root, "id", auxiliaryID)
 	mat := m.Materials[idx]
 	return &mat, nil
 }

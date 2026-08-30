@@ -24,6 +24,15 @@ func TestStylePresetsCount(t *testing.T) {
 	}
 }
 
+func TestPaletteSizeForStyle(t *testing.T) {
+	cases := map[string]int{"retro16": 16, "pixel": 32, "chibi": 0, "cartoon": 0, "custom": 0}
+	for style, want := range cases {
+		if got := PaletteSizeForStyle(style); got != want {
+			t.Errorf("PaletteSizeForStyle(%q) = %d, want %d", style, got, want)
+		}
+	}
+}
+
 func TestActionPresets(t *testing.T) {
 	presets := ActionPresets()
 	if len(presets) < 4 {
@@ -42,10 +51,52 @@ func TestActionPresets(t *testing.T) {
 	}
 }
 
+func TestPixelContractsByStyle(t *testing.T) {
+	action := ActionIdle
+	for _, id := range []string{"pixel", "retro16"} {
+		style, err := StylePresetByID(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		character, err := BuildCharacterPrompt("hero", style, 32, 32, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		filmstrip, err := BuildPrompt(PromptInput{Description: "hero", StylePreset: style, ActionPreset: action, CanvasWidth: 32, CanvasHeight: 32, FrameCount: 4, Directions: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, prompt := range []string{character.Prompt, filmstrip.Prompt} {
+			if !strings.Contains(prompt, "Game-sprite design contract:") || !strings.Contains(prompt, "Pixel rendering contract:") {
+				t.Errorf("%s prompt misses pixel contracts: %s", id, prompt)
+			}
+		}
+	}
+	for _, id := range []string{"chibi", "cartoon"} {
+		style, err := StylePresetByID(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		character, err := BuildCharacterPrompt("hero", style, 32, 32, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		filmstrip, err := BuildPrompt(PromptInput{Description: "hero", StylePreset: style, ActionPreset: action, CanvasWidth: 32, CanvasHeight: 32, FrameCount: 4, Directions: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, prompt := range []string{character.Prompt, filmstrip.Prompt} {
+			if strings.Contains(prompt, "Game-sprite design contract:") || strings.Contains(prompt, "Pixel rendering contract:") {
+				t.Errorf("%s prompt unexpectedly contains pixel contracts: %s", id, prompt)
+			}
+		}
+	}
+}
+
 // TestBuildPromptDeterministic verifies the prompt is deterministic for the
 // same inputs (two builds produce identical prompt text).
 func TestBuildPromptDeterministic(t *testing.T) {
-	style, _ := StylePresetByID("pixel_classic")
+	style, _ := StylePresetByID("pixel")
 	action, _ := ActionPresetByID("walk")
 	in := PromptInput{
 		Description:  "a red-haired pixel hero",
@@ -77,14 +128,14 @@ func TestBuildPromptDeterministic(t *testing.T) {
 	if !strings.Contains(s1.Prompt, "main reference '正面'") {
 		t.Errorf("prompt misses main reference semantics: %s", s1.Prompt)
 	}
-	if len(s1.ReferenceMaterialIDs) != 2 || s1.StylePresetID != "pixel_classic" || s1.ActionPresetID != "walk" {
+	if len(s1.ReferenceMaterialIDs) != 2 || s1.StylePresetID != "pixel" || s1.ActionPresetID != "walk" {
 		t.Errorf("snapshot fields wrong: %+v", s1)
 	}
 }
 
 // TestBuildPromptValidation verifies invalid inputs are rejected.
 func TestBuildPromptValidation(t *testing.T) {
-	style, _ := StylePresetByID("pixel_classic")
+	style, _ := StylePresetByID("pixel")
 	action, _ := ActionPresetByID("idle")
 	base := PromptInput{
 		Description:  "hero",

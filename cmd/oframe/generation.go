@@ -47,7 +47,7 @@ func parseGenerationFlags(name string, args []string) (*generationFlags, string,
 	fs.StringVar(&g.settingsDir, "settings-dir", "", "local settings directory")
 	fs.StringVar(&g.providerID, "provider", "", "provider id (default: active provider)")
 	fs.StringVar(&g.model, "model", "", "image model (default: provider default)")
-	fs.StringVar(&g.style, "style", "pixel_classic", "PerfectPixel style preset id")
+	fs.StringVar(&g.style, "style", "pixel", "PerfectPixel style preset id")
 	fs.StringVar(&g.action, "action", "walk", "action preset id")
 	fs.StringVar(&g.motionID, "motion", "", "motion id (batch generate into a motion; default: legacy direction-count mode)")
 	fs.IntVar(&g.directions, "directions", 1, "direction strategy: 1 | 4 | 8")

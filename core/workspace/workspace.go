@@ -135,13 +135,14 @@ func DefaultPath() (string, error) {
 func pkgInfo(pkg *identity.Package) (identity.PackageInfo, error) {
 	m := pkg.Manifest()
 	return identity.PackageInfo{
-		Name:           m.Identity.Name,
-		Path:           pkg.Root(),
-		Category:       m.Identity.Category,
-		FormatVersion:  m.FormatVersion,
-		CurrentVersion: m.Versions.Current,
-		CreatedAt:      m.Identity.CreatedAt,
-		UpdatedAt:      m.Identity.UpdatedAt,
+		Name:                m.Identity.Name,
+		Path:                pkg.Root(),
+		Category:            m.Identity.Category,
+		FormatVersion:       m.FormatVersion,
+		CurrentVersion:      m.Versions.Current,
+		BaseCharacterSource: pkg.BaseCharacterSource(),
+		CreatedAt:           m.Identity.CreatedAt,
+		UpdatedAt:           m.Identity.UpdatedAt,
 	}, nil
 }
 

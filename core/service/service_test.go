@@ -180,7 +180,7 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 	root := newTestPackage(t)
 
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 4, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 4, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -210,7 +210,7 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 	if plan.OutboundMaterials[0].Role != identity.RoleMainReference {
 		t.Errorf("first outbound material not main: %+v", plan.OutboundMaterials[0])
 	}
-	if plan.Prompt.StylePresetID != "pixel_classic" || plan.Prompt.ActionPresetID != "walk" {
+	if plan.Prompt.StylePresetID != "pixel" || plan.Prompt.ActionPresetID != "walk" {
 		t.Errorf("prompt snapshot presets: %+v", plan.Prompt)
 	}
 	if plan.Prompt.FrameCount != 4 || plan.Prompt.CanvasWidth != 32 {
@@ -234,7 +234,7 @@ func TestPrepareGenerationEightDirections(t *testing.T) {
 	root := newTestPackage(t)
 
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 8, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 8, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)

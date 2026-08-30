@@ -354,7 +354,7 @@ func TestCLIAndServiceConsistency(t *testing.T) {
 	}
 	svcMotion := createCLIMotion(t, dirSvc, pkgSvc, rt, 4)
 	plan, err := svc.PrepareGeneration(context.Background(), service.GenerationRequest{
-		PackagePath: pkgSvc, MotionID: svcMotion, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: pkgSvc, MotionID: svcMotion, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)

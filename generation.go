@@ -7,8 +7,12 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/oframe/character-workbench/core/pipeline"
 	"github.com/oframe/character-workbench/core/provider"
 	"github.com/oframe/character-workbench/core/service"
 )
@@ -172,9 +176,10 @@ type StatsView struct {
 
 // StylePresetView mirrors pipeline.StylePreset.
 type StylePresetView struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	NegativePrompt string `json:"negativePrompt"`
 }
 
 // ActionPresetView mirrors pipeline.ActionPreset.
@@ -216,12 +221,15 @@ type PromptSnapshotView struct {
 // GenerationRequestView is the generation-confirmation plan request.
 type GenerationRequestView struct {
 	PackagePath             string   `json:"packagePath"`
+	BaseCharacter           bool     `json:"baseCharacter,omitempty"` // 基础角色单图计划（character-creation-workflow）
 	MotionID                string   `json:"motionId,omitempty"`      // "" → 方向数模式 (legacy)
 	ProviderID              string   `json:"providerId"`              // "" → 当前 provider（默认 Doubao）
 	Model                   string   `json:"model"`                   // "" → provider 默认
 	Directions              int      `json:"directions"`              // 1 | 4 | 8 (legacy 模式)
 	DisableMirror           bool     `json:"disableMirror,omitempty"` // legacy 模式: 关闭镜像 → 全方向独立生成
-	StylePresetID           string   `json:"stylePresetId"`           // "" → pixel_classic
+	StylePresetID           string   `json:"stylePresetId"`           // "" → pixel
+	StyleCustom             string   `json:"styleCustom,omitempty"`   // 自定义风格提示词（非空时优先）
+	Description             string   `json:"description,omitempty"`   // 任务级提示词覆盖；空 → 身份描述
 	ActionPresetID          string   `json:"actionPresetId"`          // "" → walk
 	FrameCount              int      `json:"frameCount"`
 	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`     // 0 → 3
@@ -258,10 +266,11 @@ type GenerationPlanView struct {
 
 // DirectionResultView is one generated direction's outcome.
 type DirectionResultView struct {
-	Direction string `json:"direction"`
-	Attempts  int    `json:"attempts"`
-	Bytes     int    `json:"bytes"`
-	Model     string `json:"model"`
+	Direction   string `json:"direction"`
+	Attempts    int    `json:"attempts"`
+	Bytes       int    `json:"bytes"`
+	Model       string `json:"model"`
+	CandidateID string `json:"candidateId,omitempty"` // base-character: the recorded candidate
 }
 
 // GenerationResultView is returned after the confirmation decision.
@@ -531,6 +540,33 @@ func (a *App) ProviderStats() (*StatsView, error) {
 
 // --- PerfectPixel presets (四个风格预设 + 动作预设) ---
 
+// CurrentModelsView describes the effective models behind current UI actions.
+type CurrentModelsView struct {
+	ProviderID        string `json:"providerId"`
+	ProviderName      string `json:"providerName"`
+	ImageModel        string `json:"imageModel,omitempty"`
+	EnhanceProviderID string `json:"enhanceProviderId,omitempty"`
+	EnhanceModel      string `json:"enhanceModel,omitempty"`
+	EnhanceSupported  bool   `json:"enhanceSupported"`
+}
+
+// CurrentModels resolves the effective image/text models (offline, no probes).
+func (a *App) CurrentModels() (*CurrentModelsView, error) {
+	svc, err := a.service()
+	if err != nil {
+		return nil, err
+	}
+	m := svc.CurrentModelInfo()
+	return &CurrentModelsView{
+		ProviderID:        m.ProviderID,
+		ProviderName:      m.ProviderName,
+		ImageModel:        m.ImageModel,
+		EnhanceProviderID: m.EnhanceProviderID,
+		EnhanceModel:      m.EnhanceModel,
+		EnhanceSupported:  m.EnhanceSupported,
+	}, nil
+}
+
 // PresetCatalog returns the built-in PerfectPixel presets.
 func (a *App) PresetCatalog() (*PresetCatalogView, error) {
 	svc, err := a.service()
@@ -540,7 +576,7 @@ func (a *App) PresetCatalog() (*PresetCatalogView, error) {
 	cat := svc.PresetCatalog()
 	out := &PresetCatalogView{Styles: []StylePresetView{}, Actions: []ActionPresetView{}}
 	for _, s := range cat.Styles {
-		out.Styles = append(out.Styles, StylePresetView{ID: s.ID, Name: s.Name, Description: s.Description})
+		out.Styles = append(out.Styles, StylePresetView{ID: s.ID, Name: s.Name, Description: s.Description, NegativePrompt: pipeline.NegativePromptForStyle(s.ID)})
 	}
 	for _, ac := range cat.Actions {
 		out.Actions = append(out.Actions, ActionPresetView{ID: ac.ID, Name: ac.Name, Description: ac.Description})
@@ -561,14 +597,26 @@ func (a *App) GenerationPlanPrepare(req GenerationRequestView) (*GenerationPlanV
 	if err != nil {
 		return nil, err
 	}
+	// 契约守卫：prepare 总是作用于"当前打开的身份包"。请求显式携带了另一个
+	// 包路径时拒绝而不是静默替换，避免外部调用者误以为能跨包写入。
+	if req.PackagePath != "" {
+		want := filepath.Clean(pkg.Root())
+		got := filepath.Clean(req.PackagePath)
+		if !strings.EqualFold(want, got) {
+			return nil, fmt.Errorf("generation: packagePath %q does not match the open package %q; prepare always operates on the currently open package", req.PackagePath, pkg.Root())
+		}
+	}
 	plan, err := svc.PrepareGeneration(context.Background(), service.GenerationRequest{
 		PackagePath:             pkg.Root(),
+		BaseCharacter:           req.BaseCharacter,
 		MotionID:                req.MotionID,
 		ProviderID:              req.ProviderID,
 		Model:                   req.Model,
 		Directions:              req.Directions,
 		DisableMirror:           req.DisableMirror,
 		StylePresetID:           req.StylePresetID,
+		StyleCustom:             req.StyleCustom,
+		Description:             req.Description,
 		ActionPresetID:          req.ActionPresetID,
 		FrameCount:              req.FrameCount,
 		MaxAttemptsPerDirection: req.MaxAttemptsPerDirection,
@@ -598,7 +646,7 @@ func (a *App) GenerationPlanConfirm(planID string, accept bool) (*GenerationResu
 		Results: []DirectionResultView{},
 	}
 	for _, r := range res.Results {
-		out.Results = append(out.Results, DirectionResultView{Direction: r.Direction, Attempts: r.Attempts, Bytes: r.Bytes, Model: r.Model})
+		out.Results = append(out.Results, DirectionResultView{Direction: r.Direction, Attempts: r.Attempts, Bytes: r.Bytes, Model: r.Model, CandidateID: r.CandidateID})
 	}
 	return out, nil
 }

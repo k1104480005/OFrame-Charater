@@ -21,6 +21,28 @@ const UNCATEGORIZED = "";
 /** 「全部」分类的语义值 */
 const ALL = "all";
 
+/** 卡片排序方式：updated = 最近修改优先（默认）| created = 最近创建优先 | name = 名称 A→Z */
+type SortMode = "updated" | "created" | "name";
+
+const SORT_MODES: Array<{ value: SortMode; label: string }> = [
+  { value: "updated", label: "最近修改优先" },
+  { value: "created", label: "最近创建优先" },
+  { value: "name", label: "名称 A→Z" },
+];
+
+/** 排序偏好持久化（跨启动记住用户选择） */
+const SORT_STORAGE_KEY = "launch.sortMode";
+
+function loadSortMode(): SortMode {
+  try {
+    const v = localStorage.getItem(SORT_STORAGE_KEY);
+    if (v === "updated" || v === "created" || v === "name") return v;
+  } catch {
+    /* localStorage 不可用时使用默认值 */
+  }
+  return "updated";
+}
+
 /** 把 RFC3339 时间戳格式化为「MM-DD HH:mm」（本地时区） */
 function fmtTime(iso?: string): string {
   if (!iso) return "—";
@@ -51,6 +73,7 @@ export function LaunchPage() {
 
   // 分类
   const [category, setCategory] = useState<string>(ALL); // "all" = 全部 | "" = 未分类 | 分类名
+  const [sortMode, setSortMode] = useState<SortMode>(loadSortMode);
   const [newCategory, setNewCategory] = useState("");
   const [extraCategories, setExtraCategories] = useState<string[]>([]); // 空分类（尚无包）
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -108,6 +131,37 @@ export function LaunchPage() {
       : category === UNCATEGORIZED
         ? packages.filter((p) => !(p.category ?? "").trim())
         : packages.filter((p) => (p.category ?? "").trim() === category);
+
+  // 卡片排序：时间戳无效时按 0 处理（排最后），保证比较结果确定。
+  const sorted = useMemo(() => {
+    const time = (iso?: string) => {
+      const t = iso ? new Date(iso).getTime() : NaN;
+      return Number.isNaN(t) ? 0 : t;
+    };
+    const list = [...filtered];
+    switch (sortMode) {
+      case "created":
+        list.sort((a, b) => time(b.createdAt) - time(a.createdAt));
+        break;
+      case "name":
+        list.sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+        break;
+      case "updated":
+      default:
+        list.sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
+        break;
+    }
+    return list;
+  }, [filtered, sortMode]);
+
+  const changeSortMode = (mode: SortMode) => {
+    setSortMode(mode);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, mode);
+    } catch {
+      /* 忽略持久化失败 */
+    }
+  };
 
   const flash = (m: string) => {
     setMsg(m);
@@ -395,6 +449,21 @@ export function LaunchPage() {
                 {category === ALL ? "全部" : category === UNCATEGORIZED ? "未分类" : category} · {filtered.length} 个身份包
               </span>
               {msg && <span className="status-ok mono">{msg}</span>}
+              <label className="launch__sort">
+                <span className="faint mono">排序</span>
+                <select
+                  value={sortMode}
+                  onChange={(e) => changeSortMode(e.target.value as SortMode)}
+                  aria-label="身份包排序方式"
+                  title="身份包卡片排序方式"
+                >
+                  {SORT_MODES.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             {loading ? (
@@ -403,7 +472,7 @@ export function LaunchPage() {
               <div className="empty-state">{emptyHint}</div>
             ) : (
               <ul className="launch__grid">
-                {filtered.map((p) => (
+                {sorted.map((p) => (
                   <li key={p.path} className="launch__card" draggable onDragStart={(e) => handleCardDragStart(e, p.path)}>
                     <button
                       className="pixel-btn pixel-btn--warn launch__card-del"
@@ -436,6 +505,9 @@ export function LaunchPage() {
                         {p.name}
                       </span>
                     )}
+                    <span className="mono launch__item-meta">
+                      角色来源：{p.baseCharacterSource === "ai" ? "AI 生成" : p.baseCharacterSource === "import" ? "本地导入" : "未选择"}
+                    </span>
                     <span className="mono launch__item-meta">
                       版本 {p.currentVersion} · 格式 v{p.formatVersion}
                     </span>

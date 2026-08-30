@@ -161,7 +161,7 @@ func run(outDir, name, exportsBase string, force bool) error {
 		return err
 	}
 	plan, err := svc.PrepareGeneration(ctx, service.GenerationRequest{
-		PackagePath: outDir, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: outDir, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		return err

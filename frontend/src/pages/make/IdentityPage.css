@@ -1,8 +1,38 @@
+/* 身份页单列布局：按依赖顺序纵向排列 —— 描述/素材 → 逻辑画布（生成前置
+   条件）→ 基础角色生成/采用 → 锚点 → 身份版本。 */
 .identity {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  max-width: 860px;
+  width: 100%;
+}
+
+.identity__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  width: 100%;
+}
+
+/* 反馈状态条：固定出现在页面顶部，操作结果即时可见 */
+.identity__feedback {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.identity__feedback--error {
+  background: var(--bg-inset);
+  border: var(--border-w) solid var(--status-warn);
+  color: var(--status-warn);
+}
+
+.identity__feedback--ok {
+  background: var(--bg-inset);
+  border: var(--border-w) solid var(--status-ok);
+  color: var(--status-ok);
 }
 
 .panel-heading {
@@ -18,6 +48,26 @@
   color: var(--ink-dim);
   font-size: 9px;
   flex-wrap: wrap;
+}
+
+.identity__meta--tight {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+/* 版本历史并入页首状态区：默认折叠，点击展开 */
+.identity__versions-box {
+  margin-top: var(--space-1);
+}
+
+.identity__versions-box summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.identity__versions-box .identity__versions {
+  margin-top: var(--space-1);
 }
 
 .identity__num {
@@ -41,6 +91,344 @@
   background: var(--bg-inset);
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+
+.identity__anchor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.identity__anchor-delete {
+  flex: 0 0 auto;
+}
+
+/* 候选网格：可换行，避免横向溢出 */
+.identity__candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.identity__candidate {
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: var(--space-2);
+}
+
+.identity__candidate img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  image-rendering: pixelated;
+  object-fit: contain;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+}
+
+.identity__candidate--adopted {
+  outline: 2px solid var(--pixel-accent, #d86b3f);
+}
+
+.identity__candidate .mono,
+.identity__candidate .faint {
+  font-size: 12px;
+}
+
+.identity__anchor-preview {
+  margin-top: var(--space-2);
+}
+
+/* 素材网格：缩略图 + 角色 + 名称 + 删除 */
+.identity__material-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.identity__material {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: var(--space-2);
+}
+
+.identity__material img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  cursor: zoom-in;
+}
+
+.identity__material-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  cursor: zoom-in;
+  text-align: center;
+  border: none;
+  color: var(--ink-faint);
+  font-family: inherit;
+}
+
+.identity__material-name {
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity__material-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: auto;
+}
+
+.identity__material-actions .pixel-btn {
+  font-size: 12px;
+  padding: 2px var(--space-2);
+}
+
+/* 未保存草稿徽标：琥珀色提示（非错误），与标题保持间距 */
+.identity__draft-badge {
+  margin-left: var(--space-2);
+  color: var(--pixel-accent, #d86b3f);
+  border-color: var(--pixel-accent, #d86b3f);
+}
+
+.identity__source-panel {
+  border-color: var(--pixel-accent, #d86b3f);
+}
+
+.identity__source-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity__source-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.identity__source-options .pixel-btn {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+}
+
+.identity__source-options .faint {
+  font-size: 10px;
+}
+
+.identity__source-locked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* 创建角色：向导式时间线（编号徽标 + 左侧引导线 + 分步卡片） */
+.identity__steps {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-left: 34px;
+  margin-top: var(--space-2);
+}
+
+.identity__steps::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--border-faint);
+}
+
+.identity__step-card {
+  position: relative;
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity__step-marker {
+  position: absolute;
+  left: -27px;
+  top: 12px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--pixel-accent, #d86b3f);
+  border-radius: 50%;
+  background: var(--bg-panel);
+  color: var(--pixel-accent, #d86b3f);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.identity__step-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.identity__step-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.identity__step-hint {
+  font-size: 11px;
+}
+
+.identity__step-note {
+  font-size: 11px;
+}
+
+.identity__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.identity__actions--left {
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.identity__style-custom {
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+/* 任务卡：风格 + 状态 + 操作同一行，附加输入按需展开 */
+.identity__task-card .pixel-input {
+  width: 100%;
+}
+
+.identity__task-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 生成任务：结构化卡片 + 可折叠确认详情 */
+.identity__task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity__task-card {
+  border: var(--border-w) dashed var(--border-faint);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.identity__task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.identity__task-spacer {
+  flex: 1;
+}
+
+.identity__task-row .pixel-input {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+
+.identity__task-plan {
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  padding: var(--space-2);
+}
+
+.identity__task-plan summary {
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.identity__task-plan .gen-plan {
+  margin-top: var(--space-2);
+}
+
+/* PerfectPixel 标准开关 */
+.identity__pixelperfect-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.identity__pixelperfect-toggle .faint {
+  font-size: 11px;
+}
+
+/* 锚点说明 */
+.identity__anchor-intro {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 内置负面提示词展示：长英文契约文本的边界与换行 */
+.identity__negative-prompt {
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }

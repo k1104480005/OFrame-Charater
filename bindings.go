@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -19,13 +20,14 @@ import (
 // PackageSummary is the lightweight identity-package descriptor the frontend
 // uses everywhere (launch page list, session header, tab footer).
 type PackageSummary struct {
-	Name           string `json:"name"`
-	Path           string `json:"path"`
-	Category       string `json:"category,omitempty"`
-	FormatVersion  int    `json:"formatVersion"`
-	CurrentVersion string `json:"currentVersion"`
-	CreatedAt      string `json:"createdAt"`
-	UpdatedAt      string `json:"updatedAt"`
+	Name                string `json:"name"`
+	Path                string `json:"path"`
+	Category            string `json:"category,omitempty"`
+	FormatVersion       int    `json:"formatVersion"`
+	CurrentVersion      string `json:"currentVersion"`
+	CreatedAt           string `json:"createdAt"`
+	UpdatedAt           string `json:"updatedAt"`
+	BaseCharacterSource string `json:"baseCharacterSource,omitempty"`
 }
 
 // CanvasView mirrors identity.CanvasSpec for the frontend.
@@ -70,15 +72,18 @@ type VersionView struct {
 
 // IdentityView is the full Identity sub-page payload.
 type IdentityView struct {
-	Name           string         `json:"name"`
-	ID             string         `json:"id"`
-	Description    string         `json:"description"`
-	EntryKind      string         `json:"entryKind"`
-	Canvas         *CanvasView    `json:"canvas,omitempty"`
-	Anchors        []AnchorView   `json:"anchors"`
-	Materials      []MaterialView `json:"materials"`
-	Versions       []VersionView  `json:"versions"`
-	CurrentVersion string         `json:"currentVersion"`
+	Name                string         `json:"name"`
+	ID                  string         `json:"id"`
+	Description         string         `json:"description"`
+	EntryKind           string         `json:"entryKind"`
+	BaseCharacterID     string         `json:"baseCharacterId,omitempty"`     // 当前采用的基础角色候选
+	BaseCharacterSource  string         `json:"baseCharacterSource,omitempty"` // immutable: ai | import
+	PerfectPixelStandard bool           `json:"perfectPixelStandard"`
+	Canvas               *CanvasView    `json:"canvas,omitempty"`
+	Anchors             []AnchorView   `json:"anchors"`
+	Materials           []MaterialView `json:"materials"`
+	Versions            []VersionView  `json:"versions"`
+	CurrentVersion      string         `json:"currentVersion"`
 }
 
 // --- session: current identity package ---
@@ -163,13 +168,14 @@ func (a *App) openPackage(pkg *identity.Package) (*PackageSummary, error) {
 func (a *App) packageSummary(pkg *identity.Package) *PackageSummary {
 	m := pkg.Manifest()
 	return &PackageSummary{
-		Name:           m.Identity.Name,
-		Path:           pkg.Root(),
-		Category:       m.Identity.Category,
-		FormatVersion:  m.FormatVersion,
-		CurrentVersion: m.Versions.Current,
-		CreatedAt:      m.Identity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:      m.Identity.UpdatedAt.Format(time.RFC3339),
+		Name:                m.Identity.Name,
+		Path:                pkg.Root(),
+		Category:            m.Identity.Category,
+		FormatVersion:       m.FormatVersion,
+		CurrentVersion:      m.Versions.Current,
+		BaseCharacterSource: pkg.BaseCharacterSource(),
+		CreatedAt:           m.Identity.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           m.Identity.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -191,14 +197,17 @@ func (a *App) IdentityGet() (*IdentityView, error) {
 	}
 	m := pkg.Manifest()
 	view := &IdentityView{
-		Name:           m.Identity.Name,
-		ID:             m.Identity.ID,
-		Description:    m.Identity.Description,
-		EntryKind:      m.Identity.EntryKind,
-		Anchors:        []AnchorView{},
-		Materials:      []MaterialView{},
-		Versions:       []VersionView{},
-		CurrentVersion: m.Versions.Current,
+		Name:                m.Identity.Name,
+		ID:                  m.Identity.ID,
+		Description:         m.Identity.Description,
+		EntryKind:           m.Identity.EntryKind,
+		BaseCharacterID:     m.Identity.BaseCharacter,
+		BaseCharacterSource:  pkg.BaseCharacterSource(),
+		PerfectPixelStandard: pkg.PerfectPixelStandard(),
+		Anchors:              []AnchorView{},
+		Materials:           []MaterialView{},
+		Versions:            []VersionView{},
+		CurrentVersion:      m.Versions.Current,
 	}
 	if c := m.LogicalCanvas; c != nil {
 		view.Canvas = &CanvasView{UnitWidth: c.UnitWidth, UnitHeight: c.UnitHeight}
@@ -276,6 +285,18 @@ func (a *App) IdentitySetCanvas(width, height int) error {
 	return a.identityChanged()
 }
 
+// IdentitySetPerfectPixelStandard explicitly enables the verified 256x256 processing mode.
+func (a *App) IdentitySetPerfectPixelStandard(enabled bool) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	if err := pkg.SetPerfectPixelStandard(enabled); err != nil {
+		return err
+	}
+	return a.identityChanged()
+}
+
 // IdentityAnchorPresets returns the built-in anchor presets (脚底/手持点/中心).
 func (a *App) IdentityAnchorPresets() []AnchorPresetView {
 	presets := identity.AnchorPresets()
@@ -325,6 +346,51 @@ func (a *App) IdentityAddAnchor(name, presetID string, x, y int) (*AnchorView, e
 		return nil, err
 	}
 	return &AnchorView{ID: an.ID, Name: an.Name, Preset: an.Preset, X: an.X, Y: an.Y}, nil
+}
+
+// IdentityDeleteAnchor removes a custom runtime anchor by ID.
+func (a *App) IdentityDeleteAnchor(id string) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	if err := pkg.DeleteAnchor(id); err != nil {
+		return err
+	}
+	return a.identityChanged()
+}
+
+// IdentityEnhanceDescription expands the given description with the active
+// provider's TEXT model (one billed text call). The result is a suggestion —
+// the frontend fills it back into the description box for user review.
+func (a *App) IdentityEnhanceDescription(description string) (string, error) {
+	if _, err := a.requirePackage(); err != nil {
+		return "", err
+	}
+	svc, err := a.service()
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	return svc.EnhanceDescription(ctx, description)
+}
+
+// IdentitySetMainReference promotes an auxiliary reference image to the main
+// reference (the current main is demoted to auxiliary automatically).
+func (a *App) IdentitySetMainReference(materialID string) (*MaterialView, error) {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return nil, err
+	}
+	mat, err := pkg.SwapMainReference(materialID)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.identityChanged(); err != nil {
+		return nil, err
+	}
+	return &MaterialView{ID: mat.ID, Kind: mat.Kind, Role: mat.Role, Name: mat.Name, Path: mat.Path, AddedAt: mat.AddedAt.Format(time.RFC3339)}, nil
 }
 
 // IdentityImportMaterial stores a reference image or existing sprite into the
@@ -388,6 +454,85 @@ func (a *App) PickMaterialFile(title string) (string, error) {
 func (a *App) identityChanged() error {
 	a.emit(EventSessionChanged, a.CurrentPackage())
 	return nil
+}
+
+// --- unsaved drafts (workbench-ui spec: 草稿在标签切换/任务运行/重启后保留) ---
+
+// DraftView is the persisted unsaved-draft sidecar of the session package
+// (identity.Draft): the identity description textarea and the motion creation
+// form. It never touches the manifest and never participates in exports.
+type DraftView struct {
+	Description  string `json:"description"`
+	MotionName   string `json:"motionName"`
+	MotionCount  int    `json:"motionCount"`
+	MotionMirror *bool  `json:"motionMirror,omitempty"`
+	UpdatedAt    string `json:"updatedAt"`
+}
+
+// DraftInput is the editable draft payload with MERGE semantics: nil fields
+// are left untouched, so the identity page can save the description while the
+// motion page saves its own creation-form fields without clobbering each
+// other. An explicit value (including "") overwrites that field.
+type DraftInput struct {
+	Description  *string `json:"description,omitempty"`
+	MotionName   *string `json:"motionName,omitempty"`
+	MotionCount  *int    `json:"motionCount,omitempty"`
+	MotionMirror *bool   `json:"motionMirror,omitempty"`
+}
+
+// DraftGet returns the session package's unsaved draft (zero view when none).
+func (a *App) DraftGet() (*DraftView, error) {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return nil, err
+	}
+	d, err := pkg.LoadDraft()
+	if err != nil {
+		return nil, err
+	}
+	return &DraftView{
+		Description:  d.Description,
+		MotionName:   d.MotionName,
+		MotionCount:  d.MotionCount,
+		MotionMirror: d.MotionMirror,
+		UpdatedAt:    d.UpdatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// DraftPut merges the provided draft fields into the session package's
+// unsaved draft (cheap sidecar write; no manifest change, no session event).
+func (a *App) DraftPut(in DraftInput) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	d, err := pkg.LoadDraft()
+	if err != nil {
+		return err
+	}
+	if in.Description != nil {
+		d.Description = *in.Description
+	}
+	if in.MotionName != nil {
+		d.MotionName = *in.MotionName
+	}
+	if in.MotionCount != nil {
+		d.MotionCount = *in.MotionCount
+	}
+	if in.MotionMirror != nil {
+		d.MotionMirror = in.MotionMirror
+	}
+	return pkg.SaveDraft(d)
+}
+
+// DraftClear drops the session package's unsaved draft (after the real fields
+// are saved). Missing draft is a no-op.
+func (a *App) DraftClear() error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	return pkg.ClearDraft()
 }
 
 // findPreset looks up a built-in anchor preset by ID.

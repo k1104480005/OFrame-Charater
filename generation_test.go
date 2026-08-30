@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -42,6 +43,19 @@ func b64PNGResp() *http.Response {
 		StatusCode: 200,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader(data)),
+	}
+}
+
+// b64ImagePNGResp wraps arbitrary image bytes in the doubao b64_json shape —
+// used by the base-character binding tests to serve one valid PNG.
+func b64ImagePNGResp(data []byte) *http.Response {
+	payload, _ := json.Marshal(map[string]any{
+		"data": []map[string]any{{"b64_json": base64.StdEncoding.EncodeToString(data)}},
+	})
+	return &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader(payload)),
 	}
 }
 
@@ -213,7 +227,7 @@ func TestGenerationPlanBindings(t *testing.T) {
 
 	// Prepare: 4 directions → plan with 外发素材/方向数/预算/每方向最多 3 次.
 	plan, err := app.GenerationPlanPrepare(GenerationRequestView{
-		Directions: 4, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		Directions: 4, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +241,7 @@ func TestGenerationPlanBindings(t *testing.T) {
 	if plan.MaxAttemptsPerDirection != 3 || plan.ExpectedCalls != 3 || len(plan.OutboundMaterials) != 2 {
 		t.Fatalf("plan budget/materials: %+v", plan)
 	}
-	if plan.Prompt.Prompt == "" || plan.Prompt.StylePresetID != "pixel_classic" {
+	if plan.Prompt.Prompt == "" || plan.Prompt.StylePresetID != "pixel" {
 		t.Fatalf("prompt snapshot missing: %+v", plan.Prompt)
 	}
 
@@ -243,7 +257,7 @@ func TestGenerationPlanBindings(t *testing.T) {
 	// Prepare again and confirm → executes 3 provider calls (right/up/down),
 	// stats updated.
 	plan2, err := app.GenerationPlanPrepare(GenerationRequestView{
-		Directions: 4, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		Directions: 4, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -273,4 +287,23 @@ func TestGenerationPlanBindings(t *testing.T) {
 		t.Fatal("expected error for invalid direction count")
 	}
 	_ = context.Background()
+}
+
+// TestGenerationPlanPrepareRejectsForeignPackagePath verifies the contract
+// guard: prepare always operates on the currently open package. A request that
+// explicitly names a DIFFERENT package path is rejected instead of being
+// silently redirected to the open package (no silent cross-package writes).
+func TestGenerationPlanPrepareRejectsForeignPackagePath(t *testing.T) {
+	app, _ := newTestApp(t, nil)
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := app.GenerationPlanPrepare(GenerationRequestView{
+		PackagePath: filepath.Join(t.TempDir(), "SomeOtherPackage"),
+		Directions:  1, StylePresetID: "pixel", ActionPresetID: "walk",
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match the open package") {
+		t.Fatalf("foreign packagePath error = %v, want explicit mismatch refusal", err)
+	}
 }

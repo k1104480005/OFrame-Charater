@@ -7,13 +7,16 @@ import type { GenerationPlanView, MotionView, ProviderOptionView } from "../../a
 import {
   confirmGeneration,
   createMotion,
+  fetchDraft,
   fetchMotions,
   fetchProviderOptions,
   prepareGeneration,
+  saveDraftPatch,
   setMotionFrameDurations,
   setMotionStrategy,
 } from "../../api/client";
 import { useSession } from "../../state/SessionContext";
+import { useWork } from "../../state/WorkContext";
 
 const STRATEGY_LABEL: Record<string, string> = {
   "1": "单方向（down/正面）",
@@ -23,8 +26,9 @@ const STRATEGY_LABEL: Record<string, string> = {
 
 export function MotionPage() {
   const { pkg } = useSession();
+  // 当前动作来自共享工作上下文：一次选择，制作/验收/编辑/导出全部同步。
+  const { motionId, selectMotion, focusCandidate } = useWork();
   const [motions, setMotions] = useState<MotionView[]>([]);
-  const [motionId, setMotionId] = useState("");
   const [name, setName] = useState("");
   const [count, setCount] = useState("1");
   const [mirror, setMirror] = useState(true);
@@ -38,6 +42,8 @@ export function MotionPage() {
   const [imageOptions, setImageOptions] = useState<ProviderOptionView[]>([]);
   const [providerChoice, setProviderChoice] = useState("");
   const [modelChoice, setModelChoice] = useState("");
+  // 未保存草稿（.draft sidecar）：动作创建表单在切换视图/重启后恢复。
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -53,6 +59,34 @@ export function MotionPage() {
   useEffect(() => {
     void refresh();
   }, [refresh, pkg?.path]);
+
+  // 恢复动作表单草稿（仅挂载时一次）。
+  useEffect(() => {
+    let cancelled = false;
+    void fetchDraft()
+      .then((d) => {
+        if (cancelled) return;
+        if (d.motionName) setName(d.motionName);
+        if (d.motionCount > 0) setCount(String(d.motionCount));
+        if (d.motionMirror !== null && d.motionMirror !== undefined) setMirror(d.motionMirror);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setDraftLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 表单变更防抖写入草稿 sidecar（部分合并，不影响描述草稿）。
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const t = window.setTimeout(() => {
+      void saveDraftPatch({ motionName: name, motionCount: parseInt(count, 10) || 0, motionMirror: mirror }).catch(() => undefined);
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [name, count, mirror, draftLoaded]);
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -73,7 +107,8 @@ export function MotionPage() {
       const m = await createMotion(name.trim() || "新动作", parseInt(count, 10) || 1, mirror);
       setName("");
       await refresh();
-      setMotionId(m.id);
+      selectMotion(m.id);
+      await saveDraftPatch({ motionName: "", motionCount: 0 }).catch(() => undefined); // 创建成功后清除动作草稿
     });
 
   const handleSetStrategy = () =>
@@ -114,6 +149,10 @@ export function MotionPage() {
             : `失败：${r.error || r.status}`,
         );
         await refresh();
+        // 生成完成自动聚焦：把首个产出候选写入共享上下文，验收页打开即显示，
+        // 无需手动重新选择动作与方向（workbench-context-preview spec）。
+        const first = (r.results ?? []).find((x) => x.candidateId);
+        if (first?.candidateId) focusCandidate(first.candidateId, motionId, first.direction || undefined);
       } else {
         setResult("已取消，未发起任何调用");
       }
@@ -177,7 +216,7 @@ export function MotionPage() {
             id="motion-select"
             value={motionId}
             onChange={(e) => {
-              setMotionId(e.target.value);
+              selectMotion(e.target.value);
               setPlan(null);
             }}
             aria-label="选择动作"

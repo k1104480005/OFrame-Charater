@@ -237,6 +237,8 @@ func (s *Service) executePlanTask(ctx context.Context, plan *GenerationPlan, pro
 		return s.failPlan(plan, &GenerationResult{PlanID: plan.ID, Accepted: true, Status: PlanExecuted}, err.Error())
 	}
 	switch plan.Kind {
+	case PlanKindBaseCharacter:
+		return s.runBaseCharacter(ctx, plan, prov, cfg, refs, progress)
 	case PlanKindRegenerate:
 		return s.runRegeneration(ctx, plan, prov, cfg, refs)
 	case PlanKindReplace:

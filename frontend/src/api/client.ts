@@ -3,12 +3,19 @@
 // typed models; Go errors reject the promise, so callers catch and display.
 import {
   AppInfo,
+  BaseCharacterAdopt,
+  BaseCharacterCandidatesGet,
+  BaseCharacterImport,
+  BaseCharacterSourceLock,
   CandidateConsistency,
   CandidateDecide,
   CandidateHistory,
   CurrentAssets,
   CurrentPackage,
   DirectionPreview,
+  DraftClear,
+  DraftGet,
+  DraftPut,
   EditDirection,
   EnhanceSettingsGet,
   EnhanceSettingsSet,
@@ -20,12 +27,20 @@ import {
   IdentityAddAnchor,
   IdentityAddAnchorPreset,
   IdentityAnchorPresets,
+  IdentityDeleteAnchor,
+  IdentityEnhanceDescription,
+  CurrentModels,
+  IdentityMaterialThumbs,
+  IdentityMaterialImage,
+  IdentityRemoveMaterial,
+  IdentitySetMainReference,
   IdentityGet,
   IdentityImportMaterial,
   IdentityRename,
   IdentitySetCategory,
   IdentitySetCanvas,
   IdentitySetDescription,
+  IdentitySetPerfectPixelStandard,
   MotionCreate,
   MotionGet,
   MotionList,
@@ -76,12 +91,15 @@ export type AcceptedAssetView = main.AcceptedAssetView;
 export type ActionPresetView = main.ActionPresetView;
 export type AnchorPresetView = main.AnchorPresetView;
 export type AnchorView = main.AnchorView;
+export type BaseCharacterCandidateView = main.BaseCharacterCandidateView;
 export type AppInfoModel = main.AppInfo;
 export type CandidateHistoryView = main.CandidateHistoryView;
 export type CandidatePreviewView = main.CandidatePreviewView;
 export type CanvasView = main.CanvasView;
 export type ConsistencyScoreView = main.ConsistencyScoreView;
 export type DirectionView = main.DirectionView;
+export type DraftInput = main.DraftInput;
+export type DraftView = main.DraftView;
 export type EditInstructionView = main.EditInstructionView;
 export type EditFrameMetaView = main.EditFrameMetaView;
 export type EditResultView = main.EditResultView;
@@ -91,6 +109,9 @@ export type GenerationRequestView = main.GenerationRequestView;
 export type GenerationResultView = main.GenerationResultView;
 export type IdentityView = main.IdentityView;
 export type MaterialView = main.MaterialView;
+export type MaterialThumbView = main.MaterialThumbView;
+export type MaterialImageView = main.MaterialImageView;
+export type CurrentModelsView = main.CurrentModelsView;
 export type MotionView = main.MotionView;
 export type OperationLogEntryView = main.OperationLogEntryView;
 export type OutboundMaterialView = main.OutboundMaterialView;
@@ -224,6 +245,10 @@ export async function saveCanvas(width: number, height: number): Promise<void> {
   return IdentitySetCanvas(width, height);
 }
 
+export async function setPerfectPixelStandard(enabled: boolean): Promise<void> {
+  return IdentitySetPerfectPixelStandard(enabled);
+}
+
 export async function fetchAnchorPresets(): Promise<AnchorPresetView[]> {
   return IdentityAnchorPresets();
 }
@@ -236,6 +261,40 @@ export async function addAnchor(name: string, presetId: string, x: number, y: nu
   return IdentityAddAnchor(name, presetId, x, y);
 }
 
+export async function deleteAnchor(id: string): Promise<void> {
+  return IdentityDeleteAnchor(id);
+}
+
+/** one billed text-model call that expands the description; result needs review */
+export async function enhanceDescription(description: string): Promise<string> {
+  return IdentityEnhanceDescription(description);
+}
+
+/** effective image/text models behind current actions (offline resolution) */
+export async function fetchCurrentModels(): Promise<CurrentModelsView> {
+  return CurrentModels();
+}
+
+/** PNG thumbnails for stored material images (missing/undecodable entries are skipped) */
+export async function fetchMaterialThumbs(): Promise<MaterialThumbView[]> {
+  return IdentityMaterialThumbs();
+}
+
+/** full-resolution stored material image (base64, capped at 20 MB) */
+export async function fetchMaterialImage(materialId: string): Promise<MaterialImageView> {
+  return IdentityMaterialImage(materialId);
+}
+
+/** delete a stored material: manifest entry + file inside the package */
+export async function removeMaterial(materialId: string): Promise<void> {
+  return IdentityRemoveMaterial(materialId);
+}
+
+/** promote an auxiliary reference to main; the current main becomes auxiliary */
+export async function setMainReference(materialId: string): Promise<MaterialView> {
+  return IdentitySetMainReference(materialId);
+}
+
 export async function importMaterial(kind: string, srcPath: string, name: string, role = ""): Promise<MaterialView> {
   return IdentityImportMaterial(kind, srcPath, name, role);
 }
@@ -243,6 +302,49 @@ export async function importMaterial(kind: string, srcPath: string, name: string
 /** opens the native file dialog (Go-side) and returns the chosen path */
 export async function pickMaterialFile(title: string): Promise<string> {
   return PickMaterialFile(title);
+}
+
+// --- base-character creation (character-creation-workflow) ---
+
+/** recorded base-character candidates of the open package, with inline PNG previews */
+export async function fetchBaseCharacterCandidates(): Promise<BaseCharacterCandidateView[]> {
+  return BaseCharacterCandidatesGet();
+}
+
+/** Permanently lock the base-character source for this identity package. */
+export async function lockBaseCharacterSource(source: "ai" | "import"): Promise<void> {
+  return BaseCharacterSourceLock(source);
+}
+
+/** adopt one candidate as the identity's current base character (no external calls) */
+export async function adoptBaseCharacter(id: string): Promise<void> {
+  return BaseCharacterAdopt(id);
+}
+
+/**
+ * record a local sprite image as a PENDING base-character candidate (the
+ * import base source; no external calls). The image must match the logical
+ * canvas; adopting afterwards is the explicit user decision.
+ */
+export async function importBaseCharacter(srcPath: string): Promise<BaseCharacterCandidateView> {
+  return BaseCharacterImport(srcPath);
+}
+
+// --- unsaved drafts (workbench-ui spec: 草稿在标签切换/任务运行/重启后保留) ---
+
+/** the session package's persisted unsaved draft (zero view when none) */
+export async function fetchDraft(): Promise<DraftView> {
+  return DraftGet();
+}
+
+/** merge a partial draft patch (nil fields stay untouched on the Go side) */
+export async function saveDraftPatch(patch: Partial<DraftInput>): Promise<void> {
+  return DraftPut(patch);
+}
+
+/** drop the session package's entire unsaved draft */
+export async function clearDraft(): Promise<void> {
+  return DraftClear();
 }
 
 // --- provider configuration & validation (模型/密钥配置与验证, shared service) ---

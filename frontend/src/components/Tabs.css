@@ -1,37 +1,64 @@
+/* ACNH-style segmented control: one rounded tray holds the stage tabs; the
+   active stage is a raised mint pill sharing the primary-button material, so
+   navigation reads as navigation — clearly distinct from action buttons. */
 .pixel-tabs {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto var(--space-3);
   display: flex;
   align-items: stretch;
-  gap: var(--space-1);
-  border-bottom: var(--border-w) solid var(--border-faint);
-  padding-bottom: var(--space-1);
-  margin-bottom: var(--space-3);
+  gap: 4px;
+  /* Fixed shell geometry: tab height can NEVER vary with fonts, emoji
+     metrics, or selection state. */
+  height: 46px;
+  padding: 5px;
+  flex: 0 0 auto; /* 标签托盘同样永不收缩 */
+  background: var(--bg-panel);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-card);
+  overflow-x: auto;
 }
 
 .pixel-tab {
-  background: var(--bg-panel);
+  background: transparent;
   color: var(--ink-dim);
-  border: var(--border-w) solid var(--border-faint);
+  border: 0;
   border-radius: var(--radius-pill);
-  padding: calc(var(--space-1) - 2px) var(--space-2);
+  padding: 0 18px;
+  min-width: 106px;
+  justify-content: center;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  transition: var(--transition);
+  gap: 6px;
+  white-space: nowrap;
+  /* Only paint changes animate — layout must never shift when selection moves. */
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
 }
 
-.pixel-tab:hover {
-  color: var(--ink);
+.pixel-tab__icon {
+  font-size: 15px;
+  line-height: 1;
+  /* Pin emoji presentation so every icon shares the same advance width
+     (✅ would otherwise fall back to a narrower symbol font). */
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
+
+.pixel-tab:hover:not(.pixel-tab--active) {
   background: var(--bg-elevated);
-  transform: translateY(-1px);
+  color: var(--ink);
 }
 
 .pixel-tab--active {
   background: var(--primary);
-  border-color: var(--primary-active);
   color: var(--on-primary);
   box-shadow: 0 3px 0 0 var(--primary-active);
+}
+
+.pixel-tab--active:hover {
+  background: var(--primary-hover);
 }
 
 .pixel-tab__accent {
@@ -39,7 +66,12 @@
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  opacity: 0.9;
+  opacity: 0.72;
+}
+
+.pixel-tab--active .pixel-tab__accent {
+  opacity: 0.85;
+  color: var(--on-primary);
 }
 
 .pixel-tabs__trailing {

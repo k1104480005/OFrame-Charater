@@ -11,6 +11,9 @@ import (
 type PaletteOptions struct {
 	// MaxColors caps the shared palette size (default 32).
 	MaxColors int
+	// Skip 为 true 时不执行调色板量化（chibi/cartoon/自定义风格），
+	// 但仍会为质量评分计算共享调色板。
+	Skip bool
 }
 
 // DefaultMaxPaletteColors is the default shared palette size cap.

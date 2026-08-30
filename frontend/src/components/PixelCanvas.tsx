@@ -40,6 +40,8 @@ export interface PixelCanvasProps {
   showGrid?: boolean;
   /** show the anchor markers */
   showAnchors?: boolean;
+  /** externally selected frame; playback and scrubbing share the same index */
+  frameIndex?: number;
   /** stage pixel budget for degraded scaling (13.3); default 512×512 */
   maxStagePixels?: number;
   label?: string;
@@ -68,6 +70,7 @@ export function PixelCanvas({
   showMatting = false,
   showGrid = true,
   showAnchors = false,
+  frameIndex,
   maxStagePixels,
   label,
 }: PixelCanvasProps) {
@@ -76,6 +79,7 @@ export function PixelCanvas({
   const playingRef = useRef(playing);
   const showAnchorsRef = useRef(showAnchors);
   const framesRef = useRef(frames);
+  const frameIndexRef = useRef(frameIndex);
   const dynRef = useRef<DynState>({ sprites: [], marks: null, current: 0, elapsed: 0 });
   const drawMarksRef = useRef<(() => void) | null>(null);
 
@@ -90,6 +94,19 @@ export function PixelCanvas({
   useEffect(() => {
     framesRef.current = frames;
   }, [frames]);
+
+  // Scrubbing changes only sprite visibility and dynamic anchor marks; the
+  // decoded atlas remains intact.
+  useEffect(() => {
+    frameIndexRef.current = frameIndex;
+    const st = dynRef.current;
+    if (st.sprites.length === 0 || frameIndex === undefined) return;
+    const next = Math.max(0, Math.min(Math.floor(frameIndex), st.sprites.length - 1));
+    st.current = next;
+    st.elapsed = 0;
+    for (let i = 0; i < st.sprites.length; i++) st.sprites[i].visible = i === next;
+    drawMarksRef.current?.();
+  }, [frameIndex]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -198,7 +215,11 @@ export function PixelCanvas({
           sprites[0].visible = true;
         }
       }
-      dynRef.current = { sprites, marks: null, current: 0, elapsed: 0 };
+      const initialFrame = frameIndexRef.current === undefined
+        ? 0
+        : Math.max(0, Math.min(Math.floor(frameIndexRef.current), Math.max(0, sprites.length - 1)));
+      for (let i = 0; i < sprites.length; i++) sprites[i].visible = i === initialFrame;
+      dynRef.current = { sprites, marks: null, current: initialFrame, elapsed: 0 };
 
       // dynamic anchor-marks layer: redrawn per frame without rebuilding
       // sprites/textures (13.3: 静态/动态分层).

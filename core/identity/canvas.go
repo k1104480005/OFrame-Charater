@@ -31,6 +31,25 @@ func (p *Package) SetLogicalCanvas(w, h int) error {
 	})
 }
 
+// SetPerfectPixelStandard explicitly enables or disables the PerfectPixel processing mode.
+// The mode is valid only for the verified 256x256 standard canvas.
+func (p *Package) SetPerfectPixelStandard(enabled bool) error {
+	return p.Update(func(m *Manifest) error {
+		if enabled && (m.LogicalCanvas == nil || m.LogicalCanvas.UnitWidth != 256 || m.LogicalCanvas.UnitHeight != 256) {
+			return fmt.Errorf("identity: PerfectPixel standard requires a 256x256 canvas")
+		}
+		m.Identity.PerfectPixelStandard = enabled
+		return nil
+	})
+}
+
+// PerfectPixelStandard reports whether the explicit PerfectPixel mode is enabled.
+func (p *Package) PerfectPixelStandard() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.manifest.Identity.PerfectPixelStandard
+}
+
 // ValidateFrame checks that a frame of the given pixel size conforms to the
 // identity's logical canvas. This is the conformance check that motion and
 // frame-sequence validation reference (task 2.4: 规格被后续动作/帧序列校验引用);

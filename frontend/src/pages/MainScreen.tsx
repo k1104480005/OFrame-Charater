@@ -3,27 +3,38 @@
 // package + SessionContext) so unfinished work is never lost on switch.
 import { useRef, useState } from "react";
 import { useSession } from "../state/SessionContext";
+import { WorkbenchProvider } from "../state/WorkContext";
 import { Tabs } from "../components/Tabs";
 import { TaskDrawer } from "../components/TaskDrawer";
 import type { TaskDrawerHandle } from "../components/TaskDrawer";
 import { SettingsPanel } from "../components/SettingsPanel";
 import type { SettingsPanelHandle } from "../components/SettingsPanel";
-import { MakeTab } from "./make/MakeTab";
+import { IdentityPage } from "./make/IdentityPage";
+import { MotionPage } from "./make/MotionPage";
 import { AcceptanceTab } from "./AcceptanceTab";
 import { ExportTab } from "./ExportTab";
 import "./MainScreen.css";
 
-type TopTab = "make" | "acceptance" | "export";
+type TopTab = "identity" | "motion" | "acceptance" | "export";
 
 const TOP_TABS = [
-  { id: "make", label: "制作", accent: "MAKE" },
-  { id: "acceptance", label: "验收", accent: "ACCEPT" },
-  { id: "export", label: "导出", accent: "EXPORT" },
+  { id: "identity", label: "身份", icon: "🌱" },
+  { id: "motion", label: "动作", icon: "🏃" },
+  { id: "acceptance", label: "验收", icon: "✅" },
+  { id: "export", label: "导出", icon: "📦" },
 ] as const;
 
 export function MainScreen() {
   const { pkg, close } = useSession();
-  const [tab, setTab] = useState<TopTab>("make");
+  return (
+    <WorkbenchProvider>
+      <WorkbenchContent pkg={pkg} close={close} />
+    </WorkbenchProvider>
+  );
+}
+
+function WorkbenchContent({ pkg, close }: { pkg: ReturnType<typeof useSession>["pkg"]; close: () => Promise<void> }) {
+  const [tab, setTab] = useState<TopTab>("identity");
   const drawerHandle = useRef<TaskDrawerHandle>({ open: () => undefined });
   const settingsHandle = useRef<SettingsPanelHandle>({ open: () => undefined });
 
@@ -51,17 +62,18 @@ export function MainScreen() {
       </header>
 
       <div className="main__body">
-        <Tabs<TopTab> tabs={TOP_TABS} active={tab} onChange={setTab} aria-label="主标签" />
-        <div className="main__content">
-          {tab === "make" && <MakeTab />}
-          {tab === "acceptance" && <AcceptanceTab />}
-          {tab === "export" && <ExportTab />}
-        </div>
+        <main className="main__workspace">
+          <Tabs<TopTab> tabs={TOP_TABS} active={tab} onChange={setTab} aria-label="主标签" />
+          <div className="main__content">
+            {tab === "identity" && <IdentityPage />}
+            {tab === "motion" && <MotionPage />}
+            {tab === "acceptance" && <AcceptanceTab />}
+            {tab === "export" && <ExportTab />}
+          </div>
+        </main>
       </div>
 
-      {/* global task drawer — visible from any tab */}
       <TaskDrawer handle={drawerHandle.current} />
-      {/* global settings — visible from any tab */}
       <SettingsPanel handle={settingsHandle.current} />
     </div>
   );

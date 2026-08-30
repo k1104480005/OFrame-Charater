@@ -211,13 +211,14 @@ func (a *App) WorkspaceList() ([]PackageSummary, error) {
 	out := make([]PackageSummary, 0, len(infos))
 	for _, info := range infos {
 		out = append(out, PackageSummary{
-			Name:           info.Name,
-			Path:           info.Path,
-			Category:       info.Category,
-			FormatVersion:  info.FormatVersion,
-			CurrentVersion: info.CurrentVersion,
-			CreatedAt:      info.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:      info.UpdatedAt.Format(time.RFC3339),
+			Name:                info.Name,
+			Path:                info.Path,
+			Category:            info.Category,
+			FormatVersion:       info.FormatVersion,
+			CurrentVersion:      info.CurrentVersion,
+			BaseCharacterSource: info.BaseCharacterSource,
+			CreatedAt:           info.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:           info.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 	return out, nil

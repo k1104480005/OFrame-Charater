@@ -1,13 +1,17 @@
 # 推送到 GitHub 指引（PUSH.md）
 
-本地仓库已完成提交并配置好远程，只差执行推送。以下任选一种方式。
+本仓库的远程与认证方式见下文；**当前工作区有大量未提交改动**，推送前必须先完成提交。
+完整流程见文末「提交当前改动并推送」一节。
 
-## 0. 当前本地状态
+## 0. 当前本地状态（以 2026-08-30 会话为准）
 
 - 分支：`master`
-- 最新提交：`ad3bbe2 feat: OFrame Character workbench — generation→acceptance→export pipeline`
-- 远程：`origin → https://github.com/k1104480005/OFrame-Charater.git`
-- 工作区：干净
+- 最新提交：`effd2b7 use Chinese workbench header title`
+- 远程：`origin → https://github.com/k1104480005/OFrame-Charater.git`（已配置）
+- git 身份：已配置（康坤涛 / k1104480005@users.noreply.github.com）
+- 工作区：**不干净** —— 约 75 个改动/新增文件（本阶段功能与测试），推送前需先提交
+- `.gitignore` 已覆盖：`/build/bin/`、`*.exe`、`*.db`、`frontend/dist/*`（保留 stub index.html）、`node_modules`、`.workbuddy/`
+- `issue-link.txt` 是有意保留的未跟踪文件，正常提交即可，不要删除
 
 ## 方式一：在有 GitHub 网络的环境直接推（最简单）
 
@@ -56,6 +60,37 @@ git remote set-url origin https://github.com/k1104480005/OFrame-Charater.git
 git status                    # 应显示 up to date / nothing to commit
 git ls-remote origin          # 能看到远端 master 分支即推送成功
 ```
+
+## 附：提交当前改动并推送（标准流程）
+
+推送前必须先提交工作区中的改动。按以下顺序执行：
+
+1. **提交前检查**（不绿不许提交）：
+
+   ```powershell
+   go test -count=1 ./...
+   cd frontend; pnpm run typecheck; pnpm run build; cd ..
+   ```
+
+2. **审阅改动**：`git status --short` 与 `git diff` 过一遍；把暂存后的 diff 再看一遍，
+   确认没有 API key / 令牌 / 本地路径等敏感信息（Provider 的 API key 存在仓库外的
+   应用配置目录，正常不会出现在仓库里——若 diff 中出现任何密钥，停下排查来源）。
+
+3. **提交**（本仓库提交信息风格：小写开头、简短祈使句，参考 `git log --oneline`）：
+
+   ```powershell
+   git add -A
+   git commit -m "integrate perfectpixel workflow: identity source lock, model display, style alignment"
+   ```
+
+   （可按实际改动拆成多个提交；单提交也可接受。不要使用 --no-verify 绕过钩子。）
+
+4. **推送**：按上文「方式一 / 二 / 三」任选其一执行 `git push -u origin master`。
+   经验提示：本机网络直连 github.com 曾失败过——超时或拒绝连接时改用方式二配置代理，
+   或方式三令牌直推；令牌直推后务必 `git remote set-url` 改回干净地址。
+
+5. **推送后确认**：`git ls-remote origin` 能看到远端 master 指向刚才的提交即成功；
+   可顺带在 GitHub Releases 上传 `build/bin/` 下两个产物（见下文）。
 
 ## 附：发布 Beta 时可一并上传的产物
 

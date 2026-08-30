@@ -39,7 +39,7 @@ func TestRegenerateCandidateFollowsConfirmationGate(t *testing.T) {
 	//    3 生成 + 1 镜像, 每方向最多 3 次总尝试. The wired pipeline produces a
 	//    retained candidate per generated direction.
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 4, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 4, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestRegenerateCandidateFollowsConfirmationGate(t *testing.T) {
 	// 2. Prepare the regeneration plan: ONE new filmstrip call, and NO provider
 	//    call at prepare time. The previous candidate must be retained.
 	regen, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, RegenerateOf: prevID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, RegenerateOf: prevID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestRegenerateCandidateFollowsConfirmationGate(t *testing.T) {
 
 	// 3. RegenerateCandidate against the NOT-YET-CONFIRMED plan must be refused
 	//    and must make NO external call (the gate is enforced, spec 4.5).
-	if _, err := svc.RegenerateCandidate(context.Background(), regen.ID); err == nil {
+	if _, _, err := svc.RegenerateCandidate(context.Background(), regen.ID); err == nil {
 		t.Fatal("RegenerateCandidate before ConfirmGeneration must be refused")
 	}
 	if rt.calls.Load() != 3 {
@@ -129,16 +129,16 @@ func TestRegenerateCandidateFollowsConfirmationGate(t *testing.T) {
 func TestRegenerateCandidateRejectsUnknownAndNonRegenPlans(t *testing.T) {
 	svc, _ := newTestService(t, nil)
 	root := newTestPackage(t)
-	if _, err := svc.RegenerateCandidate(context.Background(), "nope"); err == nil {
+	if _, _, err := svc.RegenerateCandidate(context.Background(), "nope"); err == nil {
 		t.Fatal("unknown plan must be refused")
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, Directions: 1, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, Directions: 1, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.RegenerateCandidate(context.Background(), plan.ID); err == nil {
+	if _, _, err := svc.RegenerateCandidate(context.Background(), plan.ID); err == nil {
 		t.Fatal("non-regeneration plan must be refused by RegenerateCandidate")
 	}
 }

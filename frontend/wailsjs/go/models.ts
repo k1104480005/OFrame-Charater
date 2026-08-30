@@ -337,6 +337,30 @@ export namespace main {
 	        this.formatVersion = source["formatVersion"];
 	    }
 	}
+	export class BaseCharacterCandidateView {
+	    id: string;
+	    imagePath: string;
+	    png: string;
+	    provider?: string;
+	    model?: string;
+	    status: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BaseCharacterCandidateView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.imagePath = source["imagePath"];
+	        this.png = source["png"];
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
 	export class CandidateHistoryView {
 	    id: string;
 	    motionId?: string;
@@ -471,11 +495,34 @@ export namespace main {
 	        this.detail = source["detail"];
 	    }
 	}
+	export class CurrentModelsView {
+	    providerId: string;
+	    providerName: string;
+	    imageModel?: string;
+	    enhanceProviderId?: string;
+	    enhanceModel?: string;
+	    enhanceSupported: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CurrentModelsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerId = source["providerId"];
+	        this.providerName = source["providerName"];
+	        this.imageModel = source["imageModel"];
+	        this.enhanceProviderId = source["enhanceProviderId"];
+	        this.enhanceModel = source["enhanceModel"];
+	        this.enhanceSupported = source["enhanceSupported"];
+	    }
+	}
 	export class DirectionResultView {
 	    direction: string;
 	    attempts: number;
 	    bytes: number;
 	    model: string;
+	    candidateId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DirectionResultView(source);
@@ -487,6 +534,7 @@ export namespace main {
 	        this.attempts = source["attempts"];
 	        this.bytes = source["bytes"];
 	        this.model = source["model"];
+	        this.candidateId = source["candidateId"];
 	    }
 	}
 	export class FrameView {
@@ -560,6 +608,44 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class DraftInput {
+	    description?: string;
+	    motionName?: string;
+	    motionCount?: number;
+	    motionMirror?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.description = source["description"];
+	        this.motionName = source["motionName"];
+	        this.motionCount = source["motionCount"];
+	        this.motionMirror = source["motionMirror"];
+	    }
+	}
+	export class DraftView {
+	    description: string;
+	    motionName: string;
+	    motionCount: number;
+	    motionMirror?: boolean;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.description = source["description"];
+	        this.motionName = source["motionName"];
+	        this.motionCount = source["motionCount"];
+	        this.motionMirror = source["motionMirror"];
+	        this.updatedAt = source["updatedAt"];
+	    }
 	}
 	export class EditFrameMetaView {
 	    durationMs: number;
@@ -798,12 +884,15 @@ export namespace main {
 	}
 	export class GenerationRequestView {
 	    packagePath: string;
+	    baseCharacter?: boolean;
 	    motionId?: string;
 	    providerId: string;
 	    model: string;
 	    directions: number;
 	    disableMirror?: boolean;
 	    stylePresetId: string;
+	    styleCustom?: string;
+	    description?: string;
 	    actionPresetId: string;
 	    frameCount: number;
 	    maxAttemptsPerDirection: number;
@@ -817,12 +906,15 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.packagePath = source["packagePath"];
+	        this.baseCharacter = source["baseCharacter"];
 	        this.motionId = source["motionId"];
 	        this.providerId = source["providerId"];
 	        this.model = source["model"];
 	        this.directions = source["directions"];
 	        this.disableMirror = source["disableMirror"];
 	        this.stylePresetId = source["stylePresetId"];
+	        this.styleCustom = source["styleCustom"];
+	        this.description = source["description"];
 	        this.actionPresetId = source["actionPresetId"];
 	        this.frameCount = source["frameCount"];
 	        this.maxAttemptsPerDirection = source["maxAttemptsPerDirection"];
@@ -919,6 +1011,9 @@ export namespace main {
 	    id: string;
 	    description: string;
 	    entryKind: string;
+	    baseCharacterId?: string;
+	    baseCharacterSource?: string;
+	    perfectPixelStandard: boolean;
 	    canvas?: CanvasView;
 	    anchors: AnchorView[];
 	    materials: MaterialView[];
@@ -935,6 +1030,9 @@ export namespace main {
 	        this.id = source["id"];
 	        this.description = source["description"];
 	        this.entryKind = source["entryKind"];
+	        this.baseCharacterId = source["baseCharacterId"];
+	        this.baseCharacterSource = source["baseCharacterSource"];
+	        this.perfectPixelStandard = source["perfectPixelStandard"];
 	        this.canvas = this.convertValues(source["canvas"], CanvasView);
 	        this.anchors = this.convertValues(source["anchors"], AnchorView);
 	        this.materials = this.convertValues(source["materials"], MaterialView);
@@ -959,6 +1057,36 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class MaterialImageView {
+	    materialId: string;
+	    mime: string;
+	    data: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MaterialImageView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.materialId = source["materialId"];
+	        this.mime = source["mime"];
+	        this.data = source["data"];
+	    }
+	}
+	export class MaterialThumbView {
+	    materialId: string;
+	    png: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MaterialThumbView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.materialId = source["materialId"];
+	        this.png = source["png"];
+	    }
 	}
 	
 	export class StrategyView {
@@ -1042,6 +1170,7 @@ export namespace main {
 	    currentVersion: string;
 	    createdAt: string;
 	    updatedAt: string;
+	    baseCharacterSource?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PackageSummary(source);
@@ -1056,12 +1185,14 @@ export namespace main {
 	        this.currentVersion = source["currentVersion"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
+	        this.baseCharacterSource = source["baseCharacterSource"];
 	    }
 	}
 	export class StylePresetView {
 	    id: string;
 	    name: string;
 	    description: string;
+	    negativePrompt: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StylePresetView(source);
@@ -1072,6 +1203,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.description = source["description"];
+	        this.negativePrompt = source["negativePrompt"];
 	    }
 	}
 	export class PresetCatalogView {

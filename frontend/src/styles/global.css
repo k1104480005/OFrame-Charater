@@ -154,10 +154,28 @@ h4 {
   background: var(--primary-active);
 }
 
-/* 状态色按钮：颜色只表状态 */
+/* 状态色按钮：出现即代表"有修改待保存/可执行"——实心绿，醒目提醒 */
 .pixel-btn--ok {
+  background: var(--status-ok);
   border-color: var(--status-ok);
-  box-shadow: var(--shadow-btn-tint);
+  color: #fffdf7;
+  box-shadow: 0 5px 0 0 var(--status-ok-dim);
+}
+
+.pixel-btn--ok:hover {
+  background: var(--status-ok);
+  filter: brightness(1.06);
+  box-shadow: 0 6px 0 0 var(--status-ok-dim);
+}
+
+.pixel-btn--ok:active {
+  background: var(--status-ok-dim);
+  border-color: var(--status-ok-dim);
+  box-shadow: 0 1px 0 0 var(--status-ok-dim);
+}
+
+.pixel-btn--ok:disabled {
+  box-shadow: 0 5px 0 0 var(--status-ok-dim);
 }
 
 /* 危险/删除按钮：动森红底 + 深红底部阴影（危险操作专用） */
@@ -340,6 +358,8 @@ input[type="checkbox"].pixel-switch:focus-visible {
   height: 0;
   border: none;
   border-top: var(--border-w) dashed var(--border-faint);
+  /* 全局 reset 吃掉了 hr 默认外边距，虚线会贴住内容 —— 显式留出呼吸空间 */
+  margin: var(--space-1) 0 var(--space-3);
 }
 
 .pixel-rule--faint {

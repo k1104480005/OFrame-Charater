@@ -12,13 +12,14 @@ import type {
 import { editDirection, fetchDirectionPreview, fetchMotions } from "../../api/client";
 import { PixelCanvas } from "../../components/PixelCanvas";
 import { useSession } from "../../state/SessionContext";
+import { useWork } from "../../state/WorkContext";
 import "./EditPage.css";
 
 export function EditPage() {
   const { pkg } = useSession();
+  // 编辑对象来自共享工作上下文：与制作/验收/导出共享同一动作与方向选择。
+  const { motionId, selectMotion, direction, selectDirection, bumpPreview } = useWork();
   const [motions, setMotions] = useState<MotionView[]>([]);
-  const [motionId, setMotionId] = useState("");
-  const [direction, setDirection] = useState("");
   const [preview, setPreview] = useState<CandidatePreviewView | null>(null);
   const [selected, setSelected] = useState(0);
   const [duration, setDuration] = useState("100");
@@ -70,6 +71,7 @@ export function EditPage() {
       const res: EditResultView = await editDirection(motionId, direction, instructions);
       setOkMsg(`${label} 已应用 —— ${res.frameCount} 帧 · 操作日志 #${res.logSeq}`);
       await loadPreview(motionId, direction);
+      bumpPreview();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -135,10 +137,7 @@ export function EditPage() {
           <select
             id="edit-motion"
             value={motionId}
-            onChange={(e) => {
-              setMotionId(e.target.value);
-              setDirection("");
-            }}
+            onChange={(e) => selectMotion(e.target.value)}
             aria-label="选择动作"
           >
             <option value="">— 选择动作 —</option>
@@ -151,7 +150,7 @@ export function EditPage() {
           <label className="faint" htmlFor="edit-direction">
             方向
           </label>
-          <select id="edit-direction" value={direction} onChange={(e) => setDirection(e.target.value)} aria-label="选择方向">
+          <select id="edit-direction" value={direction} onChange={(e) => selectDirection(e.target.value)} aria-label="选择方向">
             <option value="">— 选择方向 —</option>
             {motion?.directions.map((d) => (
               <option key={d.direction} value={d.direction}>
@@ -175,6 +174,7 @@ export function EditPage() {
               unitWidth={preview?.canvasWidth || 16}
               unitHeight={preview?.canvasHeight || 16}
               scale={12}
+               frameIndex={selected}
               frames={(preview?.frames ?? []).map((f) => ({
                 png: f.png,
                 durationMs: f.durationMs,

@@ -48,7 +48,7 @@ func TestSingleDirectionDefaultViaService(t *testing.T) {
 		t.Fatalf("default directions = %v, want single [down]", motionDirNames(m))
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestMotionDrivenGenerationWithMirroring(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestEightDirectionMirroringViaService(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestMirrorOffGeneratesAllDirectionsViaService(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +252,7 @@ func TestReplacementCountedInConfirmation(t *testing.T) {
 	}
 	// Initial 4-direction generation (3 calls) → left is mirror-derived.
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestReplacementCountedInConfirmation(t *testing.T) {
 	repl, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
 		PackagePath:       root,
 		MotionID:          m.ID,
-		StylePresetID:     "pixel_classic",
+		StylePresetID:     "pixel",
 		ActionPresetID:    "walk",
 		ReplaceDirections: []string{motion.DirectionLeft},
 	})
@@ -316,7 +316,7 @@ func TestFrameTimingViaService(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
-		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel_classic", ActionPresetID: "walk",
+		PackagePath: root, MotionID: m.ID, StylePresetID: "pixel", ActionPresetID: "walk",
 	})
 	if err != nil {
 		t.Fatal(err)
