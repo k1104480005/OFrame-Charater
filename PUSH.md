@@ -3,13 +3,14 @@
 本仓库的远程与认证方式见下文；**当前工作区有大量未提交改动**，推送前必须先完成提交。
 完整流程见文末「提交当前改动并推送」一节。
 
-## 0. 当前本地状态（以 2026-08-30 会话为准）
+## 0. 当前本地状态（以 2026-08-31 会话为准）
 
 - 分支：`master`
-- 最新提交：`effd2b7 use Chinese workbench header title`
-- 远程：`origin → https://github.com/k1104480005/OFrame-Charater.git`（已配置）
+- 最新提交：`2fc878b align style presets with perfectpixel and harden identity workflow`
+- 远程：`origin → https://github.com/KANGKUNTAO/OFrame-Character.git`（2026-08-31 仓库改名并更新 remote；旧地址 `k1104480005/OFrame-Charater` 仍会重定向）
 - git 身份：已配置（康坤涛 / k1104480005@users.noreply.github.com）
-- 工作区：**不干净** —— 约 75 个改动/新增文件（本阶段功能与测试），推送前需先提交
+- 仓库级代理：`http.proxy socks5h://127.0.0.1:7897`（本机 Clash 系代理当前监听 7897；旧的 7890 已失效）
+- 工作区：`2fc878b` 已推送至远端 master（`git ls-remote` 已核对）
 - `.gitignore` 已覆盖：`/build/bin/`、`*.exe`、`*.db`、`frontend/dist/*`（保留 stub index.html）、`node_modules`、`.workbuddy/`
 - `issue-link.txt` 是有意保留的未跟踪文件，正常提交即可，不要删除
 
@@ -45,13 +46,13 @@ git config --global --unset http.proxy
 ## 方式三：用令牌直接推（一次性）
 
 ```bash
-git push -u origin https://<用户名>:<PAT>@github.com/k1104480005/OFrame-Charater.git
+git push -u origin https://<用户名>:<PAT>@github.com/KANGKUNTAO/OFrame-Character.git
 ```
 
 推完后把远程地址改回不带令牌的形式，避免令牌残留在配置里：
 
 ```bash
-git remote set-url origin https://github.com/k1104480005/OFrame-Charater.git
+git remote set-url origin https://github.com/KANGKUNTAO/OFrame-Character.git
 ```
 
 ## 推送后确认

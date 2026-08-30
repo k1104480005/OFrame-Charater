@@ -189,4 +189,4 @@ $bytes = [System.IO.File]::ReadAllBytes('build/bin/OFrameCharacterWorkbench.exe'
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 康坤涛 (k1104480005)
+[MIT](LICENSE) — Copyright (c) 2026 康坤涛 (KANGKUNTAO)

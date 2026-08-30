@@ -77,7 +77,7 @@ $env:Path='C:\Users\Administrator\AppData\Local\Programs\nsis-3.12;'+$env:Path; 
 
 - **Windows 环境**：本机 Windows 10 build 19041。Go 1.26.4 + `powershell.exe` 5.1 正常；若遇到 `Your Windows doesn't fully support CET`，是 Harness 的 `pwsh.exe` 启动器问题，不是项目问题，不要改 `go.mod` 掩盖。
 - **网络受限（重要）**：Go module proxy、npm registry、Google Fonts 均不可达 → 依赖只能走本地缓存（`GOPROXY=off GOSUMDB=off`），**不要新增 npm/go 依赖**（Nunito 字体已本地打包，无需联网）。SourceForge 可达（装 NSIS 时验证过）。
-- **git push 需代理**：仓库级已配置 `http.proxy socks5h://127.0.0.1:7890`（用户 VPN 为 Clash 系代理模式；VPN 开着才能推）。推送方式：`git push -u https://<user>:<TOKEN>@github.com/k1104480005/OFrame-Charater.git master`（用户保留经典令牌，repo 权限），推完 `git remote set-url origin https://github.com/...` 还原为无令牌地址 + 修正 `branch.master.remote=origin`。
+- **git push 需代理**：仓库级已配置 `http.proxy socks5h://127.0.0.1:7897`（用户 VPN 为 Clash 系代理模式，2026-08-31 起本机代理监听 7897；VPN 开着才能推）。远程：`https://github.com/KANGKUNTAO/OFrame-Character.git`（2026-08-31 起仓库改名，旧地址 k1104480005/OFrame-Charater 会重定向）。推送方式：`git push -u origin master`；若需令牌直推用 `https://<user>:<TOKEN>@github.com/KANGKUNTAO/OFrame-Character.git`，推完 `git remote set-url origin` 还原为无令牌地址。
 - **不要碰的确认过的决策**：方向口径（5+3 镜像）、默认单方向 down、验收阈值 0.7、密钥本地明文存储、filmstrip 一次生成、每方向最多 3 次尝试、不做骨骼/多轨/完整绘画/云同步/MCP、不做多语言（i18n 已评估放弃：前端 16/18 文件硬编码中文 + Go 报错 13 条中文，npm 不可达装不了库）。
 - **测试风格**：确定性合成图像测试，禁止依赖真实网络/付费 API；用 fake transport；`go test -count=1 ./...` 为准。
 - **Windows 保留文件名**：测试文件不要用 `aux.*` 等保留名。
