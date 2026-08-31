@@ -331,7 +331,7 @@ func (v *Volcengine) GenerateText(ctx context.Context, req TextRequest) (*TextRe
 	// chatCompletionText posts {"model","messages":[user]} to
 	// {base}/chat/completions — exactly Ark's own Doubao-LLM endpoint — with
 	// the shared auth/response-cap/error layer underneath.
-	text, err := chatCompletionText(ctx, v.client, v.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+	text, err := chatCompletionText(ctx, v.client, v.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
 	if err != nil {
 		return nil, err
 	}

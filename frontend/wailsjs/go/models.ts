@@ -1060,6 +1060,24 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class ImageFilePreview {
+	    width: number;
+	    height: number;
+	    mime: string;
+	    data: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageFilePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.width = source["width"];
+	        this.height = source["height"];
+	        this.mime = source["mime"];
+	        this.data = source["data"];
+	    }
+	}
 	export class MaterialImageView {
 	    materialId: string;
 	    mime: string;
@@ -1173,6 +1191,7 @@ export namespace main {
 	    createdAt: string;
 	    updatedAt: string;
 	    baseCharacterSource?: string;
+	    baseCharacterThumb?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PackageSummary(source);
@@ -1188,6 +1207,7 @@ export namespace main {
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.baseCharacterSource = source["baseCharacterSource"];
+	        this.baseCharacterThumb = source["baseCharacterThumb"];
 	    }
 	}
 	export class StylePresetView {
@@ -1483,10 +1503,13 @@ export namespace main {
 	export class TaskSummary {
 	    id: string;
 	    kind: string;
+	    packagePath: string;
+	    provider?: string;
 	    status: string;
 	    progress: number;
 	    error: string;
 	    retryCount: number;
+	    expectedCalls: number;
 	    createdAt: string;
 	    updatedAt: string;
 	    live: boolean;
@@ -1499,10 +1522,13 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.kind = source["kind"];
+	        this.packagePath = source["packagePath"];
+	        this.provider = source["provider"];
 	        this.status = source["status"];
 	        this.progress = source["progress"];
 	        this.error = source["error"];
 	        this.retryCount = source["retryCount"];
+	        this.expectedCalls = source["expectedCalls"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.live = source["live"];

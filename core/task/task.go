@@ -18,7 +18,11 @@ const (
 // re-run it after a restart, and the success result used for idempotent
 // deduplication (tasks spec 6.4: 成功结果缓存).
 type Task struct {
-	ID             string  `json:"id"`
+	ID string `json:"id"`
+	// PackagePath is the owning identity package (归属身份包). Empty only for
+	// legacy rows created before the field existed; such rows are never
+	// auto-bound to the currently open package by the GUI.
+	PackagePath    string  `json:"packagePath"`
 	Kind           string  `json:"kind"`           // generate | replace | regenerate | export | ...
 	Provider       string  `json:"provider"`       // provider 参数: provider id
 	ProviderParams string  `json:"providerParams"` // provider 参数: JSON plan snapshot

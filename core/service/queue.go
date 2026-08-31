@@ -30,6 +30,7 @@ func (s *Service) SetTasksChangedHook(fn func()) { s.queueStore.SetOnChange(fn) 
 type TaskView struct {
 	ID            string  `json:"id"`
 	Kind          string  `json:"kind"`
+	PackagePath   string  `json:"packagePath"` // 归属身份包；旧任务为空（前端不得据此绑定当前包）
 	Status        string  `json:"status"`
 	Progress      float64 `json:"progress"`
 	Error         string  `json:"error"`
@@ -47,7 +48,7 @@ type TaskView struct {
 func (s *Service) taskView(t task.Task) TaskView {
 	_, live := s.liveTasks.Load(t.ID)
 	return TaskView{
-		ID: t.ID, Kind: t.Kind, Status: t.Status, Progress: t.Progress,
+		ID: t.ID, Kind: t.Kind, PackagePath: t.PackagePath, Status: t.Status, Progress: t.Progress,
 		Error: t.Error, RetryCount: t.RetryCount, Provider: t.Provider,
 		ExpectedCalls: t.ExpectedCalls, Fingerprint: t.Fingerprint,
 		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
@@ -178,6 +179,7 @@ func (s *Service) createTaskForPlan(plan *GenerationPlan, fp string) (task.Task,
 	return s.queueStore.Create(task.Task{
 		ID:             plan.ID,
 		Kind:           plan.Kind,
+		PackagePath:    plan.PackagePath,
 		Provider:       plan.ProviderID,
 		ProviderParams: string(providerParams),
 		ExpectedCalls:  plan.ExpectedCalls,

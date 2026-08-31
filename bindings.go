@@ -5,8 +5,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"image"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,6 +32,9 @@ type PackageSummary struct {
 	CreatedAt           string `json:"createdAt"`
 	UpdatedAt           string `json:"updatedAt"`
 	BaseCharacterSource string `json:"baseCharacterSource,omitempty"`
+	// BaseCharacterThumb is the adopted identity basis as inline base64 PNG
+	// (主页身份卡缩略图); empty when no basis is adopted yet.
+	BaseCharacterThumb string `json:"baseCharacterThumb,omitempty"`
 }
 
 // CanvasView mirrors identity.CanvasSpec for the frontend.
@@ -174,6 +181,7 @@ func (a *App) packageSummary(pkg *identity.Package) *PackageSummary {
 		FormatVersion:       m.FormatVersion,
 		CurrentVersion:      m.Versions.Current,
 		BaseCharacterSource: pkg.BaseCharacterSource(),
+		BaseCharacterThumb:  pkg.AdoptedBaseCharacterThumb(),
 		CreatedAt:           m.Identity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:           m.Identity.UpdatedAt.Format(time.RFC3339),
 	}
@@ -447,6 +455,50 @@ func (a *App) PickMaterialFile(title string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// ImageFilePreview loads a local image for webview display: the raw file bytes
+// as base64 (front-end builds a data: URL) plus pixel dimensions from
+// DecodeConfig. Dimensions are 0 when the format has no registered Go decoder
+// (e.g. BMP/WEBP) — the webview still renders it, and the crop modal falls
+// back to the <img> natural size.
+type ImageFilePreview struct {
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Mime   string `json:"mime"`
+	Data   string `json:"data"` // base64 of the raw file bytes
+}
+
+func imageMimeByExtension(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".bmp":
+		return "image/bmp"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/png"
+	}
+}
+
+// ReadImageForPreview reads one local image file for the import crop tool.
+func (a *App) ReadImageForPreview(path string) (ImageFilePreview, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ImageFilePreview{}, fmt.Errorf("读取图片失败: %w", err)
+	}
+	width, height := 0, 0
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(raw)); err == nil {
+		width, height = cfg.Width, cfg.Height
+	}
+	return ImageFilePreview{
+		Width: width, Height: height,
+		Mime: imageMimeByExtension(path),
+		Data: base64.StdEncoding.EncodeToString(raw),
+	}, nil
 }
 
 // identityChanged re-emits the session event so every tab sees the updated

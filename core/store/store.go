@@ -44,7 +44,17 @@ var Migrations = []Migration{
 	// (payload for re-execution, success result for the dedup cache, and the
 	// dedup fingerprint). Added with ALTER so migration v1 stays immutable.
 	{Version: 3, Name: "task_ext", SQL: schemaTaskExt},
+	// v4: task_owner — the owning identity package of each task row
+	// (package_path, empty for legacy rows). The identity page only resumes a
+	// base-character generation task whose owner matches the open package, so
+	// package B can never display package A's in-flight generation.
+	{Version: 4, Name: "task_owner", SQL: schemaTaskOwner},
 }
+
+// schemaTaskOwner adds the owning-identity-package column to the tasks table.
+const schemaTaskOwner = `
+ALTER TABLE tasks ADD COLUMN package_path TEXT NOT NULL DEFAULT '';
+`
 
 // schemaTaskExt adds the persistent-session columns to the tasks table.
 const schemaTaskExt = `

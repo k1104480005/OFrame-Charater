@@ -18,8 +18,16 @@ export function BaseCharacterDelete(arg1) {
   return window['go']['main']['App']['BaseCharacterDelete'](arg1);
 }
 
+export function BaseCharacterDescribeImage(arg1) {
+  return window['go']['main']['App']['BaseCharacterDescribeImage'](arg1);
+}
+
 export function BaseCharacterImport(arg1) {
   return window['go']['main']['App']['BaseCharacterImport'](arg1);
+}
+
+export function BaseCharacterImportCropped(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['BaseCharacterImportCropped'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function BaseCharacterReject(arg1) {
@@ -280,6 +288,10 @@ export function ProviderTestDraft(arg1) {
 
 export function ProviderValidate(arg1) {
   return window['go']['main']['App']['ProviderValidate'](arg1);
+}
+
+export function ReadImageForPreview(arg1) {
+  return window['go']['main']['App']['ReadImageForPreview'](arg1);
 }
 
 export function RollbackTo(arg1) {

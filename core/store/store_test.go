@@ -213,9 +213,10 @@ func TestMigratorApplyWithStub(t *testing.T) {
 	if err := m.Apply(ctx); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
+	// 追加式迁移：测试跟随 Migrations 列表长度推导，新增迁移无需改这里。
 	v, err := m.CurrentVersion(ctx)
-	if err != nil || v != 3 {
-		t.Fatalf("CurrentVersion = %d, %v; want 3", v, err)
+	if err != nil || v != len(Migrations) {
+		t.Fatalf("CurrentVersion = %d, %v; want %d", v, err, len(Migrations))
 	}
 	if !stub.tables["tasks"] || !stub.tables["meta"] || !stub.tables["schema_migrations"] {
 		t.Fatalf("tables created: %v", stub.tables)
@@ -224,8 +225,13 @@ func TestMigratorApplyWithStub(t *testing.T) {
 		t.Errorf("tasks DDL not executed; execs: %v", stub.execs)
 	}
 	applied, err := m.appliedVersions(ctx)
-	if err != nil || len(applied) != 3 || !applied[1] || !applied[2] || !applied[3] {
+	if err != nil || len(applied) != len(Migrations) {
 		t.Fatalf("applied versions = %v, %v", applied, err)
+	}
+	for i := 1; i <= len(Migrations); i++ {
+		if !applied[i] {
+			t.Fatalf("migration %d not recorded", i)
+		}
 	}
 
 	// Apply is idempotent: no duplicate version records, no re-execution of
@@ -235,11 +241,11 @@ func TestMigratorApplyWithStub(t *testing.T) {
 		t.Fatalf("second Apply: %v", err)
 	}
 	applied, err = m.appliedVersions(ctx)
-	if err != nil || len(applied) != 3 {
+	if err != nil || len(applied) != len(Migrations) {
 		t.Fatalf("applied after second Apply = %v, %v", applied, err)
 	}
-	if n := stub.countExecs("INSERT INTO SCHEMA_MIGRATIONS"); n != 3 {
-		t.Errorf("schema_migrations inserts = %d, want 3 (idempotency broken)", n)
+	if n := stub.countExecs("INSERT INTO SCHEMA_MIGRATIONS"); n != len(Migrations) {
+		t.Errorf("schema_migrations inserts = %d, want %d (idempotency broken)", n, len(Migrations))
 	}
 	if n := stub.countExecs("CREATE TABLE IF NOT EXISTS TASKS"); n != 1 {
 		t.Errorf("tasks DDL executions = %d, want 1 (idempotency broken)", n)

@@ -77,8 +77,10 @@ func (a *App) tasksListOrEmpty() []TaskSummary {
 	out := make([]TaskSummary, 0, len(list))
 	for _, v := range list {
 		out = append(out, TaskSummary{
-			ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
-			Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+			ID: v.ID, Kind: v.Kind, PackagePath: v.PackagePath, Provider: v.Provider,
+			Status: TaskStatus(v.Status), Progress: v.Progress,
+			Error: v.Error, RetryCount: v.RetryCount, ExpectedCalls: v.ExpectedCalls,
+			CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 			Live: v.Live,
 		})
 	}
@@ -218,6 +220,7 @@ func (a *App) WorkspaceList() ([]PackageSummary, error) {
 			FormatVersion:       info.FormatVersion,
 			CurrentVersion:      info.CurrentVersion,
 			BaseCharacterSource: info.BaseCharacterSource,
+			BaseCharacterThumb:  info.BaseCharacterThumb,
 			CreatedAt:           info.CreatedAt.Format(time.RFC3339),
 			UpdatedAt:           info.UpdatedAt.Format(time.RFC3339),
 		})

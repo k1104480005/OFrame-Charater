@@ -112,7 +112,7 @@ func (a *Agnes) GenerateText(ctx context.Context, req TextRequest) (*TextResult,
 	model := ResolveModel(req.Model, a.cfg.EffectiveTextModel())
 	ctx, cancel := applyTimeout(ctx, a.cfg.EffectiveTimeout())
 	defer cancel()
-	text, err := chatCompletionText(ctx, a.client, a.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+	text, err := chatCompletionText(ctx, a.client, a.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
 	if err != nil {
 		return nil, err
 	}

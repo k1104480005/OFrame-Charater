@@ -25,6 +25,29 @@ func candidateSource(candidate BaseCharacterCandidate) string {
 	return BaseCharacterSourceAI
 }
 
+// BaseCharacterImagePath resolves a candidate image path while enforcing the
+// package boundary. Manifest paths are untrusted input when opening packages;
+// never let preview or cleanup operations read/delete outside the package root.
+func (p *Package) BaseCharacterImagePath(rel string) (string, error) {
+	rel = strings.TrimSpace(rel)
+	if rel == "" || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("identity: base character image path must be package-relative")
+	}
+	root, err := filepath.Abs(p.root)
+	if err != nil {
+		return "", fmt.Errorf("identity: resolve package root: %w", err)
+	}
+	abs, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return "", fmt.Errorf("identity: resolve base character image path: %w", err)
+	}
+	within, err := filepath.Rel(root, abs)
+	if err != nil || within == ".." || strings.HasPrefix(within, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("identity: base character image path escapes package root: %q", rel)
+	}
+	return abs, nil
+}
+
 // BaseCharacterSource returns the immutable source selection. Legacy packages
 // without the field are inferred from their adopted candidate when possible.
 func (p *Package) BaseCharacterSource() string {
@@ -134,8 +157,8 @@ func (p *Package) AddBaseCharacterCandidate(imagePath, providerID, model, prompt
 // AddBaseCharacterCandidateFromSource records a candidate without changing the
 // current identity, while retaining the source explicitly for future checks.
 func (p *Package) AddBaseCharacterCandidateFromSource(imagePath, providerID, model, prompt, source string) (BaseCharacterCandidate, error) {
-	if strings.TrimSpace(imagePath) == "" {
-		return BaseCharacterCandidate{}, fmt.Errorf("identity: base character image path is required")
+	if _, err := p.BaseCharacterImagePath(imagePath); err != nil {
+		return BaseCharacterCandidate{}, err
 	}
 	if source != BaseCharacterSourceAI && source != BaseCharacterSourceImport {
 		return BaseCharacterCandidate{}, fmt.Errorf("identity: invalid base character source %q", source)
@@ -253,7 +276,11 @@ func (p *Package) DeleteBaseCharacterCandidate(id string) error {
 		return err
 	}
 	if rel != "" {
-		if err := os.Remove(filepath.Join(p.root, filepath.FromSlash(rel))); err != nil && !os.IsNotExist(err) {
+		abs, pathErr := p.BaseCharacterImagePath(rel)
+		if pathErr != nil {
+			// 清单已更新；非法路径不会被触碰，也不应影响删除记录。
+			p.log.Warn("identity base character file path rejected", "path", rel, "err", pathErr.Error())
+		} else if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
 			// 清单已更新；文件删除失败不回滚 —— 记录已不再被引用。
 			p.log.Warn("identity base character file remove failed", "path", rel, "err", err.Error())
 		}

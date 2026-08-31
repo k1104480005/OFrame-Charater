@@ -1,0 +1,117 @@
+/* 快速裁剪工具（本地导入：图片尺寸与画布不符时弹出） */
+
+.crop-modal__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: var(--space-3);
+}
+
+.crop-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(92vw, 960px);
+  max-height: 92vh;
+  padding: var(--space-3);
+}
+
+.crop-modal__title {
+  font-size: 14px;
+}
+
+.crop-modal__hint {
+  font-size: 12px;
+}
+
+.crop-modal__stage {
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.crop-modal__frame {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.crop-modal__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  user-select: none;
+}
+
+/* 框选交互层：覆盖整张图，接收指针事件 */
+.crop-modal__layer {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+/* 框选矩形：box-shadow 把框外区域压暗 */
+.crop-modal__box {
+  position: absolute;
+  cursor: move;
+  outline: 2px solid var(--pixel-accent, #d86b3f);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  touch-action: none;
+}
+
+/* 辅助线：三分线 + 中心十字 */
+.crop-modal__guide {
+  position: absolute;
+  pointer-events: none;
+}
+
+.crop-modal__guide--v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.crop-modal__guide--h {
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.crop-modal__guide--center {
+  background: var(--pixel-accent, #d86b3f);
+  opacity: 0.9;
+}
+
+/* 四角手柄 */
+.crop-modal__handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--pixel-accent, #d86b3f);
+  border: 2px solid #ffffff;
+  touch-action: none;
+}
+
+.crop-modal__handle--nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.crop-modal__handle--ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.crop-modal__handle--sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.crop-modal__handle--se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
+.crop-modal__meta {
+  font-size: 12px;
+}
+
+.crop-modal__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}

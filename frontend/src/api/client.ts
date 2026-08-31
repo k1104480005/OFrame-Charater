@@ -6,7 +6,9 @@ import {
   BaseCharacterAdopt,
   BaseCharacterCandidatesGet,
   BaseCharacterDelete,
+  BaseCharacterDescribeImage,
   BaseCharacterImport,
+  BaseCharacterImportCropped,
   BaseCharacterReject,
   BaseCharacterSourceLock,
   CandidateConsistency,
@@ -62,6 +64,7 @@ import {
   ProviderConfigSave,
   ProviderList,
   ProviderModels,
+  ReadImageForPreview,
   ProviderModelsDraft,
   ProviderOptions,
   ProviderPresets,
@@ -343,6 +346,41 @@ export async function deleteBaseCharacter(id: string): Promise<void> {
  */
 export async function importBaseCharacter(srcPath: string): Promise<BaseCharacterCandidateView> {
   return BaseCharacterImport(srcPath);
+}
+
+/**
+ * crop the picked image to the given source-pixel rectangle (GUI crop tool,
+ * aspect pre-locked to the logical canvas), nearest-resize to the logical
+ * canvas and register the result as the pending import draft. No external calls.
+ */
+export async function importBaseCharacterCropped(
+  srcPath: string,
+  rect: { x: number; y: number; w: number; h: number },
+): Promise<BaseCharacterCandidateView> {
+  return BaseCharacterImportCropped(srcPath, rect.x, rect.y, rect.w, rect.h);
+}
+
+/** local image file loaded for the webview: raw base64 + pixel dimensions (0 when the Go decoder is unsupported) */
+export interface ImageFilePreview {
+  width: number;
+  height: number;
+  mime: string;
+  data: string; // base64 of the raw file bytes
+}
+
+/** read a local image file for the import crop tool (probe + display in one call) */
+export async function readImageForPreview(path: string): Promise<ImageFilePreview> {
+  const v = await ReadImageForPreview(path);
+  return { width: v.width, height: v.height, mime: v.mime, data: v.data };
+}
+
+/**
+ * ask the configured prompt-enhancement text model (vision-capable) to
+ * describe one base-character candidate image (识图生成描述). One billed text
+ * call; the returned text is a suggestion for the description textarea.
+ */
+export async function describeBaseCharacterImage(candidateId: string): Promise<string> {
+  return BaseCharacterDescribeImage(candidateId);
 }
 
 // --- unsaved drafts (workbench-ui spec: 草稿在标签切换/任务运行/重启后保留) ---

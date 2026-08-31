@@ -63,7 +63,7 @@ func (d *Doubao) GenerateText(ctx context.Context, req TextRequest) (*TextResult
 		return nil, err
 	}
 	model := ResolveModel(req.Model, d.cfg.EffectiveTextModel())
-	text, err := chatCompletionText(ctx, d.client, d.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+	text, err := chatCompletionText(ctx, d.client, d.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
 	if err != nil {
 		return nil, err
 	}

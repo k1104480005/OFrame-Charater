@@ -179,3 +179,69 @@ func TestListOrdering(t *testing.T) {
 		t.Fatalf("list order: %+v", all)
 	}
 }
+
+// TestTaskPackageOwnership verifies the owning-identity-package column
+// (migration v4): the owner is persisted and returned by Get/List, survives a
+// restart, and stays immutable across status updates (progress, retry,
+// abandon). Legacy-style rows (empty owner) keep reading back as empty so the
+// GUI can never auto-bind them to the open package.
+func TestTaskPackageOwnership(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "queue.db")
+	s1, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned := sampleTask("owned")
+	owned.PackagePath = `C:\ws\hero.oframe`
+	created, err := s1.Create(owned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.PackagePath != owned.PackagePath {
+		t.Fatalf("created owner = %q, want %q", created.PackagePath, owned.PackagePath)
+	}
+	legacy, err := s1.Create(sampleTask("legacy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.PackagePath != "" {
+		t.Fatalf("legacy owner = %q, want empty", legacy.PackagePath)
+	}
+	// Updates never change the owner.
+	if _, err := s1.Update("owned", func(t *Task) error { t.Status = StatusRunning; t.Progress = 0.5; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.Update("owned", func(t *Task) error { t.Status = StatusFailed; t.Error = "x"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.Retry("owned"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	s2, err := Open(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	got, err := s2.Get("owned")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PackagePath != owned.PackagePath {
+		t.Fatalf("owner not preserved across restart/updates: %q", got.PackagePath)
+	}
+	all, err := s2.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]string{}
+	for _, t2 := range all {
+		byID[t2.ID] = t2.PackagePath
+	}
+	if byID["owned"] != owned.PackagePath || byID["legacy"] != "" {
+		t.Fatalf("list owners = %v", byID)
+	}
+}

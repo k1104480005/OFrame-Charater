@@ -11,7 +11,11 @@ export function BaseCharacterCandidatesGet():Promise<Array<main.BaseCharacterCan
 
 export function BaseCharacterDelete(arg1:string):Promise<void>;
 
+export function BaseCharacterDescribeImage(arg1:string):Promise<string>;
+
 export function BaseCharacterImport(arg1:string):Promise<main.BaseCharacterCandidateView>;
+
+export function BaseCharacterImportCropped(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<main.BaseCharacterCandidateView>;
 
 export function BaseCharacterReject(arg1:string):Promise<void>;
 
@@ -142,6 +146,8 @@ export function ProviderTest(arg1:string):Promise<main.ProviderTestView>;
 export function ProviderTestDraft(arg1:main.ProviderConfigView):Promise<main.ProviderTestView>;
 
 export function ProviderValidate(arg1:string):Promise<string>;
+
+export function ReadImageForPreview(arg1:string):Promise<main.ImageFilePreview>;
 
 export function RollbackTo(arg1:number):Promise<Array<main.OperationLogEntryView>>;
 

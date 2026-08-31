@@ -21,6 +21,23 @@ const STATUS_LABEL: Record<string, string> = {
   abandoned: "放弃",
 };
 
+// 任务类型中文名（未知类型回退显示原始 kind）。
+const KIND_LABEL: Record<string, string> = {
+  "base-character": "基础角色",
+  generate: "动作生成",
+  replace: "方向替换",
+  regenerate: "重新生成",
+  export: "导出",
+};
+
+// 短时间格式 "MM-dd HH:mm"（非法时间原样返回）。
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function groupTasks(tasks: TaskSummary[]): { running: TaskSummary[]; queued: TaskSummary[]; failed: TaskSummary[]; completed: TaskSummary[] } {
   const running: TaskSummary[] = [];
   const queued: TaskSummary[] = [];
@@ -54,7 +71,10 @@ function TaskRow({ task, onAction }: { task: TaskSummary; onAction: () => void }
 
   const isFailed = task.status === "failed";
   const isClearable = task.status === "succeeded" || task.status === "abandoned";
+  const isFinished = isClearable || isFailed;
   const pct = Math.round(task.progress * 100);
+  // 归属身份包名（路径最后一段；旧任务无归属则省略）。
+  const pkgName = task.packagePath ? (task.packagePath.split(/[\\/]/).pop() ?? "") : "";
 
   return (
     <li className={`task-row${isFailed ? " task-row--failed" : ""}`}>
@@ -67,11 +87,22 @@ function TaskRow({ task, onAction }: { task: TaskSummary; onAction: () => void }
             {task.live ? "本会话执行中" : "中断遗留"}
           </span>
         )}
-        <span className="mono task-row__kind">{task.kind}</span>
-        <span className="mono task-row__id">{task.id.slice(0, 8)}</span>
+        <span className="mono task-row__kind" title={task.kind}>{KIND_LABEL[task.kind] ?? task.kind}</span>
+        <span className="mono task-row__id" title={task.id}>{task.id.slice(0, 8)}</span>
         {task.status === "running" && <span className="mono task-row__pct">{pct}%</span>}
         {isFailed && task.retryCount > 0 && <span className="faint mono">重试 {task.retryCount} 次</span>}
       </div>
+
+      {/* 信息行：归属包 · provider · 预计调用量 · 创建/结束时间 */}
+      {(pkgName || task.provider || task.expectedCalls > 0) && (
+        <div className="task-row__meta">
+          {pkgName && <span title={task.packagePath}>包：{pkgName}</span>}
+          {task.provider && <span title={`provider：${task.provider}`}>{task.provider}</span>}
+          {task.expectedCalls > 0 && <span>预计 {task.expectedCalls} 次调用</span>}
+          <span title={task.createdAt}>创建于 {fmtTime(task.createdAt)}</span>
+          {isFinished && <span title={task.updatedAt}>{isFailed ? "失败于" : "结束于"} {fmtTime(task.updatedAt)}</span>}
+        </div>
+      )}
 
       {(task.status === "running" || task.status === "queued") && (
         <div className="task-row__progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>

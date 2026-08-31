@@ -256,12 +256,20 @@ func parseImageGenResponse(ctx context.Context, client *http.Client, raw []byte)
 }
 
 // chatCompletionText performs one chat/completions call and returns the text.
-func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKey, model, prompt string) (string, error) {
+// imageURI is an optional data URL: when set the user message becomes
+// multimodal content parts (text + image_url) for vision-capable models;
+// text-only requests keep the exact plain-string body as before.
+func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKey, model, prompt, imageURI string) (string, error) {
+	var content any = prompt
+	if imageURI != "" {
+		content = []map[string]any{
+			{"type": "text", "text": prompt},
+			{"type": "image_url", "image_url": map[string]string{"url": imageURI}},
+		}
+	}
 	body := map[string]any{
-		"model": model,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
-		},
+		"model":    model,
+		"messages": []map[string]any{{"role": "user", "content": content}},
 	}
 	raw, err := postJSON(ctx, client, baseURL+"/chat/completions", apiKey, body)
 	if err != nil {
@@ -277,11 +285,11 @@ func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKe
 	if len(out.Choices) == 0 {
 		return "", fmt.Errorf("provider: chat response has no choices")
 	}
-	content := out.Choices[0].Message.Content
-	if content == "" {
+	reply := out.Choices[0].Message.Content
+	if reply == "" {
 		return "", fmt.Errorf("provider: chat response choice has no content")
 	}
-	return content, nil
+	return reply, nil
 }
 
 func mimeOr(m string) string {

@@ -229,13 +229,22 @@
   font-size: 28px;
   font-weight: 800;
   user-select: none;
-  /* 缩略图占位：动森波点纹理 + 首字母；后续替换为真实渲染图 */
+  overflow: hidden;
+  /* 缩略图占位：动森波点纹理 + 首字母；已采用基准时显示真实角色图 */
   background-color: var(--bg-inset);
   background-image:
     radial-gradient(circle, var(--pattern-dot-a) 1.5px, transparent 1.5px),
     radial-gradient(circle, var(--pattern-dot-b) 1px, transparent 1px);
   background-size: 24px 24px, 12px 12px;
   background-position: 0 0, 6px 6px;
+}
+
+/* 已采用身份基准：卡片缩略图显示真实角色图（pixelated，等比容纳） */
+.launch__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .launch__card-name {

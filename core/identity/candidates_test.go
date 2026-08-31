@@ -281,6 +281,29 @@ func TestRejectBaseCharacterCandidate(t *testing.T) {
 	}
 }
 
+func TestBaseCharacterImagePathStaysInsidePackage(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "hero.oframe")
+	p, err := Create(root, "Hero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"../outside.png", "../../outside.png", filepath.Join(root, "outside.png")} {
+		if _, err := p.BaseCharacterImagePath(path); err == nil {
+			t.Fatalf("image path %q escaped package boundary", path)
+		}
+	}
+	inside, err := p.BaseCharacterImagePath("candidates/hero.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(root, "candidates", "hero.png"); inside != want {
+		t.Fatalf("resolved image path = %q, want %q", inside, want)
+	}
+	if _, err := p.AddBaseCharacterCandidate("../outside.png", "import", "", ""); err == nil {
+		t.Fatal("candidate with escaping image path unexpectedly accepted")
+	}
+}
+
 func TestLegacyManifestWithoutBaseCharactersOpens(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "legacy.oframe")
 	p, err := Create(root, "Legacy")

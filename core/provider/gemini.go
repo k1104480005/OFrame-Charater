@@ -410,6 +410,16 @@ func (g *Gemini) GenerateText(ctx context.Context, req TextRequest) (*TextResult
 	defer cancel()
 
 	parts := []geminiPart{{Text: req.Prompt}}
+	// Vision captioning (识图生成描述): attach the image as one inlineData
+	// part after the text — same request shape the image path uses for
+	// reference images.
+	if uri := strings.TrimSpace(req.ImageDataURL); uri != "" {
+		mime, b64, ok := strings.Cut(strings.TrimPrefix(uri, "data:"), ";base64,")
+		if !ok || mime == "" || b64 == "" {
+			return nil, MarkNotRetryable(configErrf("provider %s: invalid image data URL", g.ID()))
+		}
+		parts = append(parts, geminiPart{InlineData: &geminiInlineData{MimeType: mime, Data: b64}})
+	}
 	raw, err := geminiPostJSON(ctx, g.client,
 		geminiGenerateContentURL(g.cfg.EffectiveBaseURL(), model), key,
 		geminiGenerateContentRequest{Contents: []geminiContentRow{{Role: geminiRoleUser, Parts: parts}}})

@@ -483,7 +483,20 @@ export function LaunchPage() {
                     >
                       ✕
                     </button>
-                    <div className="launch__thumb checker-bg">{p.name.trim().charAt(0).toUpperCase() || "?"}</div>
+                    <div className="launch__thumb checker-bg">
+                      {p.baseCharacterThumb ? (
+                        <img
+                          className="launch__thumb-img"
+                          src={`data:image/png;base64,${p.baseCharacterThumb}`}
+                          alt={`${p.name} 身份基准缩略图`}
+                          draggable={false}
+                          loading="lazy"
+                          title="已采用的身份基准"
+                        />
+                      ) : (
+                        p.name.trim().charAt(0).toUpperCase() || "?"
+                      )}
+                    </div>
                     {renamePath === p.path ? (
                       <input
                         className="pixel-input launch__rename-input"

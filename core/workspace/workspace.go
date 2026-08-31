@@ -141,6 +141,7 @@ func pkgInfo(pkg *identity.Package) (identity.PackageInfo, error) {
 		FormatVersion:       m.FormatVersion,
 		CurrentVersion:      m.Versions.Current,
 		BaseCharacterSource: pkg.BaseCharacterSource(),
+		BaseCharacterThumb:  pkg.AdoptedBaseCharacterThumb(),
 		CreatedAt:           m.Identity.CreatedAt,
 		UpdatedAt:           m.Identity.UpdatedAt,
 	}, nil

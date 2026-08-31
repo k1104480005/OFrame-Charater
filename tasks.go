@@ -28,14 +28,18 @@ const (
 
 // TaskSummary is the typed drawer row.
 type TaskSummary struct {
-	ID         string     `json:"id"`
-	Kind       string     `json:"kind"`
-	Status     TaskStatus `json:"status"`
-	Progress   float64    `json:"progress"` // 0..1
-	Error      string     `json:"error"`
-	RetryCount int        `json:"retryCount"`
-	CreatedAt  string     `json:"createdAt"`
-	UpdatedAt  string     `json:"updatedAt"`
+	ID          string     `json:"id"`
+	Kind        string     `json:"kind"`
+	PackagePath string     `json:"packagePath"` // 归属身份包；空 = 旧版本任务（不得绑定到当前打开的包）
+	Provider    string     `json:"provider,omitempty"` // 执行 provider（生成任务才有）
+	Status      TaskStatus `json:"status"`
+	Progress    float64    `json:"progress"` // 0..1
+	Error       string     `json:"error"`
+	RetryCount  int        `json:"retryCount"`
+	// ExpectedCalls 是生成确认约定的预计调用量（0 = 非 generation 任务）。
+	ExpectedCalls int     `json:"expectedCalls"`
+	CreatedAt     string  `json:"createdAt"`
+	UpdatedAt     string  `json:"updatedAt"`
 	// Live 标记该任务正在本会话内执行；queued/running 且非 live 的行才是
 	// 上次会话的中断遗留（一键续跑只针对它们）。
 	Live bool `json:"live"`
@@ -64,8 +68,10 @@ func (a *App) TaskList() ([]TaskSummary, error) {
 	out := make([]TaskSummary, 0, len(views))
 	for _, v := range views {
 		out = append(out, TaskSummary{
-			ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
-			Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+			ID: v.ID, Kind: v.Kind, PackagePath: v.PackagePath, Provider: v.Provider,
+			Status: TaskStatus(v.Status), Progress: v.Progress,
+			Error: v.Error, RetryCount: v.RetryCount, ExpectedCalls: v.ExpectedCalls,
+			CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 			Live: v.Live,
 		})
 	}
@@ -83,8 +89,10 @@ func (a *App) TaskGet(id string) (TaskSummary, error) {
 		return TaskSummary{}, err
 	}
 	return TaskSummary{
-		ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
-		Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+		ID: v.ID, Kind: v.Kind, PackagePath: v.PackagePath, Provider: v.Provider,
+		Status: TaskStatus(v.Status), Progress: v.Progress,
+		Error: v.Error, RetryCount: v.RetryCount, ExpectedCalls: v.ExpectedCalls,
+		CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
 		Live: v.Live,
 	}, nil
 }

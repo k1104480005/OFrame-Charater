@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -35,6 +36,35 @@ type PackageInfo struct {
 	CreatedAt           time.Time `json:"createdAt"`
 	UpdatedAt           time.Time `json:"updatedAt"`
 	BaseCharacterSource string    `json:"baseCharacterSource,omitempty"`
+	// BaseCharacterThumb is the adopted identity basis as inline base64 PNG
+	// (主页身份卡缩略图); empty when no basis is adopted yet.
+	BaseCharacterThumb string `json:"baseCharacterThumb,omitempty"`
+}
+
+// AdoptedBaseCharacterThumb returns the adopted identity basis image encoded
+// as inline base64 PNG (launch-page card thumbnail), or "" when no basis is
+// adopted or the image file cannot be read — a missing file must never break
+// listings, the GUI falls back to the letter placeholder.
+func (p *Package) AdoptedBaseCharacterThumb() string {
+	basisID := p.Manifest().Identity.BaseCharacter
+	if basisID == "" {
+		return ""
+	}
+	for _, c := range p.BaseCharacterCandidates() {
+		if c.ID != basisID {
+			continue
+		}
+		path, err := p.BaseCharacterImagePath(c.ImagePath)
+		if err != nil {
+			return ""
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ""
+		}
+		return base64.StdEncoding.EncodeToString(data)
+	}
+	return ""
 }
 
 // Root returns the absolute package directory.

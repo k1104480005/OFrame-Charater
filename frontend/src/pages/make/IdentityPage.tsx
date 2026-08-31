@@ -3,13 +3,15 @@
 // over the shared core identity services (tasks 2.3–2.5).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnchorPresetView, AnchorView, BaseCharacterCandidateView, CurrentModelsView, GenerationPlanView, IdentityView, MaterialView, ProviderInfoView, StylePresetView } from "../../api/client";
-import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, deleteBaseCharacter, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, fetchProviders, fetchTask, fetchTasks, importBaseCharacter, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
+import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, deleteBaseCharacter, describeBaseCharacterImage, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, fetchProviders, fetchTask, fetchTasks, importBaseCharacter, importBaseCharacterCropped, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, readImageForPreview, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
 import { useSession } from "../../state/SessionContext";
 import { PixelCanvas } from "../../components/PixelCanvas";
 import { MaterialLightbox } from "../../components/MaterialLightbox";
 import { ImageLightbox } from "../../components/ImageLightbox";
 import type { ImageLightboxSource } from "../../components/ImageLightbox";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { ImageCropModal } from "../../components/ImageCropModal";
+import type { CropRect } from "../../components/ImageCropModal";
 import "./IdentityPage.css";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -84,8 +86,12 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
   const [models, setModels] = useState<CurrentModelsView | null>(null);
   const [providers, setProviders] = useState<ProviderInfoView[]>([]);
   const [previewCandidate, setPreviewCandidate] = useState<ImageLightboxSource | null>(null);
+  // 识图（AI 生成描述）的内联错误：显示在按钮旁，避免只沉在页面顶部反馈条。
+  const [describeError, setDescribeError] = useState<string | null>(null);
   const [candidateToAdopt, setCandidateToAdopt] = useState<BaseCharacterCandidateView | null>(null);
   const [candidateToDelete, setCandidateToDelete] = useState<BaseCharacterCandidateView | null>(null);
+  // 裁剪会话：导入图片与画布不符时弹出（比例锁定画布 + 辅助线框选）。
+  const [cropSession, setCropSession] = useState<{ path: string; src: string } | null>(null);
   // 未保存草稿（.draft sidecar）：切换视图/任务运行/应用重启后恢复。
   const [draftLoaded, setDraftLoaded] = useState(false);
   const genInFlight = useRef(false);
@@ -145,16 +151,35 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
   //   2. 探测队列中本会话之前未完成的生成任务 → 恢复“生成中”并轮询终态。
   const genFormRestored = useRef(false);
   const genFormKey = pkg ? `${GEN_FORM_STORE_PREFIX}${pkg.path}` : null;
+
+  // 身份包切换时，先清理上一个包的本地表单和任务状态，避免短暂沿用
+  // 上一个包的配置或继续轮询其任务。
+  useEffect(() => {
+    genFormRestored.current = false;
+    setGenStyle("pixel");
+    setGenStyleCustom("");
+    setGenCustomPrompt(false);
+    setGenDescription("");
+    setGenProvider("");
+    setGenModel("");
+    setGenStatus("idle");
+    setGenError(null);
+    setGenPlan(null);
+    setGenPlanId(null);
+    setGenStartedAt(null);
+  }, [genFormKey]);
+
   useEffect(() => {
     if (!view || !genFormKey || genFormRestored.current) return;
     genFormRestored.current = true;
     try {
       const raw = localStorage.getItem(genFormKey);
       if (raw) {
-        const saved = JSON.parse(raw) as { style?: string; styleCustom?: string; customPrompt?: boolean; provider?: string; model?: string };
+        const saved = JSON.parse(raw) as { style?: string; styleCustom?: string; customPrompt?: boolean; description?: string; provider?: string; model?: string };
         if (saved.style) setGenStyle(saved.style);
         if (typeof saved.styleCustom === "string") setGenStyleCustom(saved.styleCustom);
         if (typeof saved.customPrompt === "boolean") setGenCustomPrompt(saved.customPrompt);
+        if (typeof saved.description === "string") setGenDescription(saved.description);
         if (typeof saved.provider === "string") setGenProvider(saved.provider);
         if (typeof saved.model === "string") setGenModel(saved.model);
       }
@@ -162,9 +187,11 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
       /* 配置存档损坏时使用默认值 */
     }
     // 进行中的生成（上次会话遗留）：恢复“生成中”并轮询终态（任务 id == 计划 id）。
+    // 只恢复归属当前身份包的任务：packagePath 不匹配（含旧版本任务的空归属）
+    // 一律忽略，避免把其他包的生成中任务误显示成本包的进度。
     void fetchTasks()
       .then((rows) => {
-        const live = rows.find((t) => t.kind === "base-character" && (t.status === "running" || t.status === "queued"));
+        const live = rows.find((t) => t.kind === "base-character" && t.packagePath === pkg?.path && (t.status === "running" || t.status === "queued"));
         if (!live) return;
         setGenStatus("generating");
         setGenPlanId(live.id);
@@ -177,11 +204,11 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
   useEffect(() => {
     if (!genFormKey || !genFormRestored.current) return;
     try {
-      localStorage.setItem(genFormKey, JSON.stringify({ style: genStyle, styleCustom: genStyleCustom, customPrompt: genCustomPrompt, provider: genProvider, model: genModel }));
+      localStorage.setItem(genFormKey, JSON.stringify({ style: genStyle, styleCustom: genStyleCustom, customPrompt: genCustomPrompt, description: genDescription, provider: genProvider, model: genModel }));
     } catch {
       /* 存储失败不阻塞生成 */
     }
-  }, [genStyle, genStyleCustom, genCustomPrompt, genProvider, genModel, genFormKey]);
+  }, [genStyle, genStyleCustom, genCustomPrompt, genDescription, genProvider, genModel, genFormKey]);
 
   // 生成中轮询任务队列：切标签/重启后也能感知终态（任务 id == 计划 id）。
   useEffect(() => {
@@ -229,6 +256,8 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
   const isAI = view?.baseCharacterSource === "ai";
   // 采用即定稿：身份基准一旦采用，描述/参考图/画布/生成（导入）阶段全部锁定。
   const basisAdopted = Boolean(view?.baseCharacterId);
+  // 本地导入画布优先：画布规格已保存且无未保存修改时才允许导入（后端仍兜底校验尺寸）。
+  const importCanvasReady = Boolean(view?.canvas) && !canvasDirty;
   // 参考图容量：1 主参考图 + 最多 2 辅助参考图（界面前置拦截，后端仍兜底校验）。
   const mainRefCount = view?.materials.filter((m) => m.role === "main_reference").length ?? 0;
   const auxRefCount = view?.materials.filter((m) => m.role === "auxiliary_reference").length ?? 0;
@@ -450,8 +479,10 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
     setCandidateToDelete(null);
     void run("candidate-delete", async () => {
       await deleteBaseCharacter(cand.id);
+      // 同步刷新：候选列表（缩略图/确认锁定/候选网格）+ 身份视图（锚点面板等）。
       await loadCandidates();
-      flash("候选图已删除 —— 记录与图片文件均已移除");
+      await load();
+      flash("已删除：记录与图片文件均已移除，相关区域已同步更新");
     });
   };
 
@@ -466,27 +497,82 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
       setView(await fetchIdentity());
       flash(source === "ai" ? "基础角色来源已锁定为 AI 生成" : "基础角色来源已锁定为本地导入");
       if (source === "import") {
-        const path = await pickMaterialFile("选择角色图（尺寸需与逻辑画布一致）");
+        // 画布优先：画布规格未设置/未保存时不打开文件选择，先引导去保存画布规格。
+        if (!importCanvasReady) {
+          flash("来源已锁定为本地导入 —— 请先在“逻辑画布”步骤设置并保存规格，再导入角色图");
+          return;
+        }
+        const path = await pickMaterialFile("选择角色图（一次一张，尺寸需与逻辑画布一致）");
         if (!path) return;
         await importBaseCharacter(path);
         await loadCandidates();
-        flash("角色图已登记为候选 —— 确认无误后点“采用”");
+        flash("角色图已登记为候选 —— 确认无误后点“确认锁定”");
       }
     });
   };
 
   const handleImportBase = () =>
     run("import-base", async () => {
+      setDescribeError(null); // 换图后旧的识图错误不再相关
       if (!view?.baseCharacterSource) {
         setSourceConfirm("import");
         return;
       }
-      const path = await pickMaterialFile("选择角色图（尺寸需与逻辑画布一致）");
+      const path = await pickMaterialFile("选择角色图（一次一张，尺寸需与逻辑画布一致）");
       if (!path) return; // cancelled
+      const canvas = view.canvas;
+      if (canvas) {
+        // 探针：尺寸与画布一致 → 直接导入；不符 → 打开裁剪工具（比例锁定画布）。
+        const preview = await readImageForPreview(path);
+        if (preview.width > 0 && (preview.width !== canvas.unitWidth || preview.height !== canvas.unitHeight)) {
+          setCropSession({ path, src: `data:${preview.mime || "image/png"};base64,${preview.data}` });
+          return;
+        }
+      }
       await importBaseCharacter(path);
       await loadCandidates();
-      flash("角色图已登记为候选 —— 确认无误后点“采用”");
+      flash("角色图已登记为候选 —— 确认无误后点“确认锁定”");
     });
+
+  const confirmCrop = (rect: CropRect) => {
+    if (!cropSession) return;
+    const session = cropSession;
+    setDescribeError(null);
+    void run("import-crop", async () => {
+      await importBaseCharacterCropped(session.path, rect);
+      setCropSession(null);
+      await loadCandidates();
+      flash("已按画布规格裁剪并登记 —— 在步骤 4 确认锁定");
+    });
+  };
+
+  // 把识图失败的原始错误翻译成可操作的提示（跟随在内联错误下方）。
+  const describeErrorHint = (raw: string): string => {
+    if (raw.includes("超时") || raw.includes("deadline") || raw.includes("timeout")) {
+      return "识图调用超时 —— 免费网关高峰期常见：可稍后重试，或在设置中更换更快的视觉模型";
+    }
+    if (raw.includes("400") || raw.includes("vision") || raw.includes("image") || raw.includes("不支持") || raw.includes("invalid") || raw.includes("multimodal")) {
+      return "当前增强模型很可能不支持图像输入 —— 请在设置中把增强模型换成支持识图的视觉模型（如 qwen-vl / gemini / gpt-4o 类）";
+    }
+    return "";
+  };
+
+  // 识图与“AI 增强描述”同理：不能用 run()（成功后会 load() 用旧草稿回填，
+  // 把刚生成的描述覆盖掉），自管 busy + 内联错误。
+  const handleDescribeImage = async () => {
+    if (!pendingImportDraft) return;
+    setDescribeError(null);
+    setBusy("describe-image");
+    try {
+      const text = await describeBaseCharacterImage(pendingImportDraft.id);
+      setDescription(text);
+      flash("AI 已根据角色图生成描述 —— 请核对与修改后保存");
+    } catch (e) {
+      setDescribeError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const handleImport = () =>
     run("import-reference_image", async () => {
@@ -514,6 +600,10 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
     () => (view ? candidates.find((c) => c.id === view.baseCharacterId) ?? null : null),
     [candidates, view],
   );
+  // 本地导入流程的待锁定草稿（一次一张；重新导入会替换上一张未锁定图）。
+  const pendingImportDraft = view?.baseCharacterSource === "import"
+    ? candidates.find((c) => c.status === "pending") ?? null
+    : null;
 
   if (!view) {
     // 完整占位面板：加载/错误态不塌缩成一行，页面高度与其他标签一致。
@@ -542,7 +632,7 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
               <strong>{view.baseCharacterSource === "ai" ? "AI 生成" : "导入已有角色图"}</strong>
               <span className="status-ok">已锁定</span>
             </div>
-            <div className="faint">身份包的基础角色来源不可切换。{view.baseCharacterSource === "ai" ? "当前可使用提示词、风格和参考图生成候选。" : "当前只接受本地角色图候选，身份描述仅作为角色档案。"}</div>
+            <div className="faint">身份包的基础角色来源不可切换。{view.baseCharacterSource === "ai" ? "当前可使用提示词、风格和参考图生成候选。" : "流程：逻辑画布 → 导入角色图 → 角色描述 → 确认锁定；描述会作为后续动作生成的提示词基础。"}</div>
           </div>
         ) : (
           <div className="identity__source-choice">
@@ -552,9 +642,9 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                 AI 生成
                 <span className="faint">提示词 + 风格 + 参考图</span>
               </button>
-              <button className="pixel-btn" disabled={busy !== null} onClick={() => void handleImportBase()}>
+              <button className="pixel-btn" disabled={busy !== null} onClick={() => void handleImportBase()} title="锁定来源后，先在“逻辑画布”步骤确定规格，再选择一张与画布同尺寸的本地角色图">
                 导入已有角色图
-                <span className="faint">本地角色图 + 尺寸校验</span>
+                <span className="faint">本地角色图 · 一次一张 · 尺寸校验</span>
               </button>
             </div>
           </div>
@@ -592,11 +682,11 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
             </h3>
             <hr className="pixel-rule" />
             <div className="identity__steps">
-              <section className="identity__step-card">
-                <span className="identity__step-marker mono">1</span>
+              <section className="identity__step-card identity__step-card--description">
+                <span className="identity__step-marker mono">{isAI ? "1" : "3"}</span>
                 <div className="identity__step-head">
                   <span className="identity__step-title mono">角色描述</span>
-                  <span className="identity__step-hint faint">{isAI ? "保存为身份档案，并作为生成提示词的基础" : "仅作为角色档案，不参与本体生成"}</span>
+                  <span className="identity__step-hint faint">{isAI ? "保存为身份档案，并作为生成提示词的基础" : "会作为后续动作生成的提示词基础 —— 请尽量准确描述这张本地角色图的外观、配色与体型"}</span>
                 </div>
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述角色外观、配色、体型…" disabled={basisAdopted} />
                 {basisAdopted && (
@@ -609,26 +699,53 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                     </button>
                   </div>
                 )}
-                <div className="identity__actions identity__actions--left">
-                  <button
-                    className="pixel-btn"
-                    disabled={busy !== null || !description.trim() || models?.enhanceSupported === false || basisAdopted}
-                    onClick={() => void handleEnhanceDescription()}
-                    title={basisAdopted ? "已采用身份基准 —— 角色描述已锁定" : models?.enhanceSupported === false ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型" : "调用文本模型把简短描述扩写成结构化角色设定 —— 将产生一次文本调用费用；结果填入上方文本框，请检查后保存"}
-                  >
-                    {busy === "enhance" ? "增强中…（最长约 90 秒）" : "AI 增强描述"}
-                  </button>
-                  <span className="faint">
-                    {models?.enhanceSupported
-                      ? `文本模型：${models.enhanceProviderId || models.providerName || models.providerId} / ${models.enhanceModel} · 慢模型可能需要 30–90 秒`
-                      : "当前未配置可用的文本模型 —— 请在设置中配置增强模型"}
-                  </span>
-                </div>
-                {enhanceError && <div className="error-text">{enhanceError}</div>}
+                {isAI && (
+                  <div className="identity__actions identity__actions--left">
+                    <button
+                      className="pixel-btn"
+                      disabled={busy !== null || !description.trim() || models?.enhanceSupported === false || basisAdopted}
+                      onClick={() => void handleEnhanceDescription()}
+                      title={basisAdopted ? "已采用身份基准 —— 角色描述已锁定" : models?.enhanceSupported === false ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型" : "调用文本模型把简短描述扩写成结构化角色设定 —— 将产生一次文本调用费用；结果填入上方文本框，请检查后保存"}
+                    >
+                      {busy === "enhance" ? "增强中…（最长约 90 秒）" : "AI 增强描述"}
+                    </button>
+                    <span className="faint">
+                      {models?.enhanceSupported
+                        ? `文本模型：${models.enhanceProviderId || models.providerName || models.providerId} / ${models.enhanceModel} · 慢模型可能需要 30–90 秒`
+                        : "当前未配置可用的文本模型 —— 请在设置中配置增强模型"}
+                    </span>
+                  </div>
+                )}
+                {isAI && enhanceError && <div className="error-text">{enhanceError}</div>}
+                {!isAI && (
+                  <div className="identity__actions identity__actions--left">
+                    <button
+                      className="pixel-btn"
+                      disabled={busy !== null || basisAdopted || !pendingImportDraft || models?.enhanceSupported === false}
+                      onClick={() => void handleDescribeImage()}
+                      title={basisAdopted ? "已锁定身份基准 —— 角色描述已锁定" : !pendingImportDraft ? "先在步骤 2 导入角色图，才能识图生成描述" : models?.enhanceSupported === false ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型（需支持视觉识图）" : "调用视觉文本模型读取角色图并生成描述 —— 结果填入上方文本框，请核对后保存"}
+                    >
+                      {busy === "describe-image" ? "识图中…（最长约 90 秒）" : "AI 识图生成描述"}
+                    </button>
+                    <span className="faint">
+                      {models?.enhanceSupported === false
+                        ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型（需支持视觉识图）"
+                        : pendingImportDraft
+                          ? `识图模型：${models?.enhanceProviderId || models?.providerName || models?.providerId || "?"} / ${models?.enhanceModel || "?"} · 需支持视觉的模型，90 秒超时`
+                          : "先在步骤 2 导入角色图"}
+                    </span>
+                  </div>
+                )}
+                {!isAI && describeError && (
+                  <div className="error-text">
+                    {describeError}
+                    {describeErrorHint(describeError) && <div className="faint">{describeErrorHint(describeError)}</div>}
+                  </div>
+                )}
               </section>
 
               {view.baseCharacterSource === "ai" && (
-                <section className="identity__step-card">
+                <section className="identity__step-card identity__step-card--references">
                   <span className="identity__step-marker mono">2</span>
                   <div className="identity__step-head">
                     <span className="identity__step-title mono">参考图</span>
@@ -665,8 +782,8 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                 </section>
               )}
 
-              <section className="identity__step-card">
-                <span className="identity__step-marker mono">{isAI ? "3" : "2"}</span>
+              <section className="identity__step-card identity__step-card--canvas">
+                <span className="identity__step-marker mono">{isAI ? "3" : "1"}</span>
                 <div className="identity__step-head">
                   <span className="identity__step-title mono">逻辑画布</span>
                   <span className="identity__step-hint faint">每帧图像的像素网格大小 —— 生成、导入与锚点都以此为准</span>
@@ -703,7 +820,7 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
               </section>
 
               {view.baseCharacterSource === "ai" && (
-                <section className="identity__step-card">
+                <section className="identity__step-card identity__step-card--generate">
                   <span className="identity__step-marker mono">4</span>
                   <div className="identity__step-head">
                     <span className="identity__step-title mono">生成角色</span>
@@ -805,26 +922,50 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
               )}
 
               {view.baseCharacterSource === "import" && (
-                <section className="identity__step-card">
-                  <span className="identity__step-marker mono">3</span>
+                <section className="identity__step-card identity__step-card--import-base">
+                  <span className="identity__step-marker mono">2</span>
                   <div className="identity__step-head">
                     <span className="identity__step-title mono">导入角色图</span>
-                    <span className="identity__step-hint faint">与逻辑画布尺寸一致 · 不调用外部 AI</span>
+                    <span className="identity__step-hint faint">一次一张 · 重新导入会替换未锁定的上一张 · 与逻辑画布尺寸完全一致（不符将被拦截）· 不调用外部 AI</span>
                   </div>
                   <div className="row">
-                    <button className="pixel-btn pixel-btn--primary" disabled={busy !== null || basisAdopted} onClick={() => void handleImportBase()} title={basisAdopted ? "已采用身份基准 —— 身份生成阶段已完成" : "导入本地角色图作为候选"}>
-                      导入角色图
+                    <button
+                      className="pixel-btn pixel-btn--primary"
+                      disabled={busy !== null || basisAdopted || !importCanvasReady}
+                      onClick={() => void handleImportBase()}
+                      title={basisAdopted ? "已采用身份基准 —— 身份生成阶段已完成" : !view.canvas ? "请先在上方“逻辑画布”步骤设置并保存规格，才能导入角色图" : canvasDirty ? "画布规格有未保存的修改 —— 请先保存，再导入角色图" : pendingImportDraft ? "重新选择一张本地角色图（一次一张），替换当前未锁定图；尺寸不符时将打开裁剪工具" : "选择一张本地角色图（一次一张）；尺寸不符时将打开裁剪工具"}
+                    >
+                      {pendingImportDraft && !basisAdopted ? "重新导入角色图" : "导入角色图"}
                     </button>
-                    <span className="faint">当前画布：{view.canvas ? `${view.canvas.unitWidth} × ${view.canvas.unitHeight}` : "未设置"}</span>
+                    <span className="faint">
+                      当前画布：{view.canvas ? `${view.canvas.unitWidth} × ${view.canvas.unitHeight}${canvasDirty ? "（有未保存修改）" : ""}` : "未设置"}
+                    </span>
                   </div>
-                  {basisAdopted && (
-                    <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，不可再导入新的候选。</div>
+                  {!basisAdopted && pendingImportDraft && (
+                    <div className="identity__lock-preview">
+                      <img src={`data:image/png;base64,${pendingImportDraft.png}`} alt="已导入的角色图" title="点击放大预览" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${pendingImportDraft.png}`, title: "已导入的角色图" })} />
+                      <div className="col">
+                        <span className="faint">已导入：本地角色图{view.canvas ? ` · 画布规格 ${view.canvas.unitWidth} × ${view.canvas.unitHeight}` : ""}</span>
+                        <div className="row">
+                          <button className="pixel-btn pixel-btn--warn" disabled={busy !== null} onClick={() => setCandidateToDelete(pendingImportDraft)} aria-label="删除已导入的角色图" title="删除这张已导入的角色图（记录与图片文件一并移除，需确认）">
+                            删除角色图
+                          </button>
+                          <span className="faint">重新导入会替换这张未锁定图</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
+                  {basisAdopted ? (
+                    <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，不可再导入新的候选。</div>
+                  ) : !importCanvasReady ? (
+                    <div className="identity__step-note faint">画布优先：在上方“逻辑画布”步骤设置并保存尺寸后，才能导入角色图；导入图片的尺寸必须与画布完全一致。</div>
+                  ) : null}
                 </section>
               )}
 
-              <section className="identity__step-card">
-                <span className="identity__step-marker mono">{isAI ? "5" : "4"}</span>
+              {isAI && (
+              <section className="identity__step-card identity__step-card--candidates">
+                <span className="identity__step-marker mono">5</span>
                 <div className="identity__step-head">
                   <span className="identity__step-title mono">候选与采用</span>
                   <span className="identity__step-hint faint">先评审再采用 —— 采用后成为身份基准</span>
@@ -836,7 +977,7 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                     {candidateError} <button className="pixel-btn" onClick={() => void loadCandidates()} aria-label="重试加载候选" title="重试加载候选">重试</button>
                   </div>
                 ) : candidates.length === 0 ? (
-                  <div className="empty-state">{view.baseCharacterSource === "ai" ? "尚未生成候选 —— 完成生成任务并确认执行" : "尚未导入角色图"}</div>
+                  <div className="empty-state">尚未生成候选 —— 完成生成任务并确认执行</div>
                 ) : candidates.length > 0 ? (
                   <div className="identity__candidates">
                     {[...candidates]
@@ -879,6 +1020,39 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                   </div>
                 ) : null}
               </section>
+              )}
+              {view.baseCharacterSource === "import" && (
+                <section className="identity__step-card identity__step-card--lock">
+                  <span className="identity__step-marker mono">4</span>
+                  <div className="identity__step-head">
+                    <span className="identity__step-title mono">确认锁定</span>
+                    <span className="identity__step-hint faint">把导入的角色图锁定为身份基准 —— 锁定后画布、角色图与描述均不可再修改</span>
+                  </div>
+                  {basisAdopted ? (
+                    <div className="identity__lock-preview">
+                      {adoptedCandidate && (
+                        <img src={`data:image/png;base64,${adoptedCandidate.png}`} alt="已锁定的身份基准" title="点击放大预览" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${adoptedCandidate.png}`, title: "已锁定的身份基准" })} />
+                      )}
+                      <div className="identity__locked-note">✓ 已锁定为身份基准 —— 身份生成阶段已完成，可进入动作生成阶段。</div>
+                    </div>
+                  ) : pendingImportDraft ? (
+                    <div className="identity__lock-preview">
+                      <img src={`data:image/png;base64,${pendingImportDraft.png}`} alt="待锁定的角色图" title="点击放大预览" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${pendingImportDraft.png}`, title: "待锁定的角色图" })} />
+                      <div className="col">
+                        <span className="faint">来源：本地导入{view.canvas ? ` · 画布规格 ${view.canvas.unitWidth} × ${view.canvas.unitHeight}` : ""}</span>
+                        <div className="row">
+                          <button className="pixel-btn pixel-btn--primary" disabled={busy !== null} onClick={() => setCandidateToAdopt(pendingImportDraft)} aria-label="确认锁定身份基准" title="锁定前需要二次确认">
+                            确认锁定为身份基准
+                          </button>
+                          <span className="faint">锁定前仍可在步骤 2 重新导入替换这张图</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="empty-state">尚未导入角色图 —— 完成步骤 2 后，在这里确认锁定。</div>
+                  )}
+                </section>
+              )}
             </div>
           </section>
 
@@ -941,21 +1115,41 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
 
       <MaterialLightbox material={previewMaterial} onClose={() => setPreviewMaterial(null)} />
 
+      {cropSession && view?.canvas && (
+        <ImageCropModal
+          src={cropSession.src}
+          targetWidth={view.canvas.unitWidth}
+          targetHeight={view.canvas.unitHeight}
+          busy={busy === "import-crop"}
+          onConfirm={confirmCrop}
+          onCancel={() => setCropSession(null)}
+        />
+      )}
+
       <ImageLightbox source={previewCandidate} onClose={() => setPreviewCandidate(null)} />
 
       <ConfirmModal
         open={candidateToAdopt !== null}
-        title="采用候选"
+        title={isAI ? "采用候选" : "确认锁定身份基准"}
         message={candidateToAdopt ? (
           <div className="candidate-confirm">
-            <img src={`data:image/png;base64,${candidateToAdopt.png}`} alt="待采用候选预览" />
+            <img src={`data:image/png;base64,${candidateToAdopt.png}`} alt={isAI ? "待采用候选预览" : "待锁定角色图预览"} />
             <div className="col">
-              <span>确定采用这张候选图作为身份基准吗？</span>
-              <span className="faint">采用后其他候选将自动标记为“已弃用”，不能再采用。</span>
+              {isAI ? (
+                <>
+                  <span>确定采用这张候选图作为身份基准吗？</span>
+                  <span className="faint">采用后其他候选将自动标记为“已弃用”，不能再采用。</span>
+                </>
+              ) : (
+                <>
+                  <span>确定把这张本地角色图锁定为身份基准吗？</span>
+                  <span className="faint">锁定后画布、角色图与角色描述均不可再修改，不能更换。</span>
+                </>
+              )}
             </div>
           </div>
         ) : ""}
-        confirmLabel="确认采用"
+        confirmLabel={isAI ? "确认采用" : "确认锁定"}
         cancelLabel="取消"
         onConfirm={confirmAdoptCandidate}
         onCancel={() => setCandidateToAdopt(null)}
@@ -963,13 +1157,22 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
 
       <ConfirmModal
         open={candidateToDelete !== null}
-        title="删除候选"
+        title={isAI ? "删除候选" : "删除角色图"}
         message={candidateToDelete ? (
           <div className="candidate-confirm">
-            <img src={`data:image/png;base64,${candidateToDelete.png}`} alt="待删除候选预览" />
+            <img src={`data:image/png;base64,${candidateToDelete.png}`} alt="待删除预览" />
             <div className="col">
-              <span>确定删除这张候选图吗？</span>
-              <span className="faint">候选记录与图片文件将从身份包中永久移除，无法恢复。</span>
+              {isAI ? (
+                <>
+                  <span>确定删除这张候选图吗？</span>
+                  <span className="faint">候选记录与图片文件将从身份包中永久移除，无法恢复。</span>
+                </>
+              ) : (
+                <>
+                  <span>确定删除这张已导入的角色图吗？</span>
+                  <span className="faint">删除后可重新导入；记录与图片文件将从身份包中永久移除，无法恢复。</span>
+                </>
+              )}
             </div>
           </div>
         ) : ""}

@@ -73,11 +73,11 @@ func (s *Store) Create(t Task) (Task, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	t.CreatedAt, t.UpdatedAt = now, now
 	if _, err := s.db.Exec(`
-		INSERT INTO tasks (id, kind, provider, provider_params, expected_call_count,
+		INSERT INTO tasks (id, package_path, kind, provider, provider_params, expected_call_count,
 		                   status, progress, error, retry_count, payload, result,
 		                   fingerprint, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.Kind, t.Provider, t.ProviderParams, t.ExpectedCalls,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.PackagePath, t.Kind, t.Provider, t.ProviderParams, t.ExpectedCalls,
 		t.Status, t.Progress, t.Error, t.RetryCount, t.Payload, t.Result,
 		t.Fingerprint, t.CreatedAt, t.UpdatedAt); err != nil {
 		return Task{}, fmt.Errorf("task: insert %s: %w", t.ID, err)
@@ -117,11 +117,11 @@ func (s *Store) Update(id string, fn func(*Task) error) (Task, error) {
 // Get returns one task by id.
 func (s *Store) Get(id string) (Task, error) {
 	row := s.db.QueryRow(`
-		SELECT id, kind, provider, provider_params, expected_call_count, status,
+		SELECT id, package_path, kind, provider, provider_params, expected_call_count, status,
 		       progress, error, retry_count, payload, result, fingerprint, created_at, updated_at
 		FROM tasks WHERE id = ?`, id)
 	var t Task
-	if err := row.Scan(&t.ID, &t.Kind, &t.Provider, &t.ProviderParams, &t.ExpectedCalls,
+	if err := row.Scan(&t.ID, &t.PackagePath, &t.Kind, &t.Provider, &t.ProviderParams, &t.ExpectedCalls,
 		&t.Status, &t.Progress, &t.Error, &t.RetryCount, &t.Payload, &t.Result,
 		&t.Fingerprint, &t.CreatedAt, &t.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
@@ -135,7 +135,7 @@ func (s *Store) Get(id string) (Task, error) {
 // List returns a copy of all tasks, most recently updated first.
 func (s *Store) List() ([]Task, error) {
 	rows, err := s.db.Query(`
-		SELECT id, kind, provider, provider_params, expected_call_count, status,
+		SELECT id, package_path, kind, provider, provider_params, expected_call_count, status,
 		       progress, error, retry_count, payload, result, fingerprint, created_at, updated_at
 		FROM tasks`)
 	if err != nil {
@@ -145,7 +145,7 @@ func (s *Store) List() ([]Task, error) {
 	var out []Task
 	for rows.Next() {
 		var t Task
-		if err := rows.Scan(&t.ID, &t.Kind, &t.Provider, &t.ProviderParams, &t.ExpectedCalls,
+		if err := rows.Scan(&t.ID, &t.PackagePath, &t.Kind, &t.Provider, &t.ProviderParams, &t.ExpectedCalls,
 			&t.Status, &t.Progress, &t.Error, &t.RetryCount, &t.Payload, &t.Result,
 			&t.Fingerprint, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("task: scan: %w", err)

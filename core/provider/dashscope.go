@@ -423,7 +423,7 @@ func (d *Dashscope) GenerateText(ctx context.Context, req TextRequest) (*TextRes
 	defer cancel()
 
 	if d.Mode() == DashscopeModeCompatible {
-		text, err := chatCompletionText(ctx, d.client, d.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+		text, err := chatCompletionText(ctx, d.client, d.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
 		if err != nil {
 			return nil, err
 		}

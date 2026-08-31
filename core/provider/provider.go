@@ -91,11 +91,15 @@ type ImageResult struct {
 	Model    string
 }
 
-// TextRequest is a text generation request (used by the optional AI-assisted
-// consistency score later and by Doubao's chat capability).
+// TextRequest is a text generation request (prompt enhancement, AI image
+// captioning 识图生成描述, and chat-capable providers).
 type TextRequest struct {
 	Prompt string
 	Model  string // empty → provider default
+	// ImageDataURL optionally attaches one image (data URL, e.g.
+	// "data:image/png;base64,...") for vision-capable text models. Empty =
+	// plain text call; providers without vision support will fail the call.
+	ImageDataURL string
 }
 
 // TextResult is a text generation result.

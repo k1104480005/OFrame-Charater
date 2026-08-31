@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,39 +140,30 @@ func (s *Service) DeleteBaseCharacter(pkgPath, candidateID string) error {
 	return pkg.DeleteBaseCharacterCandidate(candidateID)
 }
 
-// ImportBaseCharacter records a user-provided sprite image as a PENDING
-// base-character candidate — the second base source beside AI generation.
-// It converges on the SAME review flow (candidate grid → explicit adopt) and
-// involves NO external call. The base semantic is a single frame at the
-// logical canvas size (frame slicing and anchors depend on it), so the image
-// must decode and match the canvas exactly; anything else is rejected with a
-// clear message instead of silently mis-slicing later.
-func (s *Service) ImportBaseCharacter(pkgPath, srcPath string) (identity.BaseCharacterCandidate, error) {
+// importBasePrepare opens the package fresh and enforces the preconditions
+// shared by plain and cropped imports: a saved logical canvas (画布优先) and
+// the permanently locked import source.
+func (s *Service) importBasePrepare(pkgPath string) (*identity.Package, *identity.CanvasSpec, error) {
 	pkg, err := identity.Open(pkgPath)
 	if err != nil {
-		return identity.BaseCharacterCandidate{}, err
+		return nil, nil, err
 	}
 	canvas := pkg.LogicalCanvas()
 	if canvas == nil {
-		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: logical canvas must be set before importing a base character")
+		return nil, nil, fmt.Errorf("service: logical canvas must be set before importing a base character")
 	}
 	if err := pkg.LockBaseCharacterSource(identity.BaseCharacterSourceImport); err != nil {
-		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: %w", err)
+		return nil, nil, fmt.Errorf("service: %w", err)
 	}
-	raw, err := os.ReadFile(srcPath)
-	if err != nil {
-		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: read sprite image: %w", err)
-	}
-	img, err := pipeline.DecodeImageAny(raw)
-	if err != nil {
-		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: 解码图像失败（支持 PNG/JPEG/GIF）: %w", err)
-	}
-	bounds := img.Bounds()
-	if bounds.Dx() != canvas.UnitWidth || bounds.Dy() != canvas.UnitHeight {
-		return identity.BaseCharacterCandidate{}, fmt.Errorf(
-			"service: 图像尺寸 %dx%d 与逻辑画布 %dx%d 不一致 —— 请先调整画布或图像",
-			bounds.Dx(), bounds.Dy(), canvas.UnitWidth, canvas.UnitHeight)
-	}
+	return pkg, canvas, nil
+}
+
+// persistImportDraft encodes the prepared image as the package's pending
+// import draft: write a true PNG into the candidate area, record the candidate
+// (provider "import"), then replace any older un-locked draft so the
+// confirm-lock step always shows exactly one image (一次一张的草稿模型).
+// Adopted/rejected records are never touched.
+func (s *Service) persistImportDraft(pkg *identity.Package, img *image.RGBA) (identity.BaseCharacterCandidate, error) {
 	pngBytes, err := pipeline.EncodeFilmstripPNG(img)
 	if err != nil {
 		return identity.BaseCharacterCandidate{}, err
@@ -189,9 +181,87 @@ func (s *Service) ImportBaseCharacter(pkgPath, srcPath string) (identity.BaseCha
 		_ = os.Remove(abs)
 		return identity.BaseCharacterCandidate{}, err
 	}
+	for _, old := range pkg.BaseCharacterCandidates() {
+		if old.ID != candidate.ID && old.Status == identity.BaseCharacterPending {
+			if derr := pkg.DeleteBaseCharacterCandidate(old.ID); derr != nil {
+				s.log.Warn("replace pending import draft failed", "old", old.ID, "err", derr)
+			} else {
+				s.log.Info("replaced pending import draft", "old", old.ID, "new", candidate.ID)
+			}
+		}
+	}
 	s.log.Info("base character imported", "candidate", candidate.ID,
-		"size", fmt.Sprintf("%dx%d", bounds.Dx(), bounds.Dy()))
+		"size", fmt.Sprintf("%dx%d", img.Bounds().Dx(), img.Bounds().Dy()))
 	return candidate, nil
+}
+
+// ImportBaseCharacter records a user-provided sprite image as a PENDING
+// base-character candidate — the second base source beside AI generation.
+// It converges on the SAME review flow (record → explicit adopt/lock) and
+// involves NO external call. Imports are one image per call (一次一张); a
+// successful import REPLACES the previous un-locked draft (pending) so the
+// confirm-lock step always shows exactly one image. The canvas-first gate
+// lives in the GUI; the base semantic is a single frame at the logical canvas
+// size (frame slicing and anchors depend on it), so the image must decode and
+// match the canvas exactly; anything else is rejected (拦截) with a clear
+// message — the GUI then offers the aspect-locked crop tool instead.
+func (s *Service) ImportBaseCharacter(pkgPath, srcPath string) (identity.BaseCharacterCandidate, error) {
+	pkg, canvas, err := s.importBasePrepare(pkgPath)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, err
+	}
+	raw, err := os.ReadFile(srcPath)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: read sprite image: %w", err)
+	}
+	img, err := pipeline.DecodeImageAny(raw)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: 解码图像失败（支持 PNG/JPEG/GIF）: %w", err)
+	}
+	bounds := img.Bounds()
+	if bounds.Dx() != canvas.UnitWidth || bounds.Dy() != canvas.UnitHeight {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf(
+			"service: 已拦截导入：图像尺寸 %dx%d 与逻辑画布 %dx%d 不一致 —— 请在裁剪工具中按画布比例框选，或先把图片调整为 %dx%d",
+			bounds.Dx(), bounds.Dy(), canvas.UnitWidth, canvas.UnitHeight, canvas.UnitWidth, canvas.UnitHeight)
+	}
+	return s.persistImportDraft(pkg, img)
+}
+
+// ImportBaseCharacterCropped crops srcPath to the given source-pixel rectangle
+// (GUI crop tool with aspect pre-locked to the logical canvas + guide lines)
+// and registers the result, nearest-resized to the logical canvas, as the
+// pending import draft — same one-draft replace rule as ImportBaseCharacter.
+func (s *Service) ImportBaseCharacterCropped(pkgPath, srcPath string, x, y, w, h int) (identity.BaseCharacterCandidate, error) {
+	pkg, canvas, err := s.importBasePrepare(pkgPath)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, err
+	}
+	raw, err := os.ReadFile(srcPath)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: read sprite image: %w", err)
+	}
+	img, err := pipeline.DecodeImageAny(raw)
+	if err != nil {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf("service: 解码图像失败（支持 PNG/JPEG/GIF）: %w", err)
+	}
+	bounds := img.Bounds()
+	if w <= 0 || h <= 0 || x < 0 || y < 0 || x+w > bounds.Dx() || y+h > bounds.Dy() {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf(
+			"service: 裁剪区域 (%d,%d) %dx%d 超出图像范围 %dx%d",
+			x, y, w, h, bounds.Dx(), bounds.Dy())
+	}
+	// 比例校验：取整允许 1 像素误差，超出则拒绝，避免静默变形。
+	idealH := float64(w) * float64(canvas.UnitHeight) / float64(canvas.UnitWidth)
+	if math.Abs(float64(h)-idealH) > math.Max(1, idealH*0.02) {
+		return identity.BaseCharacterCandidate{}, fmt.Errorf(
+			"service: 裁剪区域比例 %d:%d 与画布 %d:%d 不符 —— 请按画布比例框选",
+			w, h, canvas.UnitWidth, canvas.UnitHeight)
+	}
+	cropped := pipeline.ToRGBA(img.SubImage(image.Rect(x, y, x+w, y+h)))
+	if cropped.Bounds().Dx() != canvas.UnitWidth || cropped.Bounds().Dy() != canvas.UnitHeight {
+		cropped = resizeNearest(cropped, canvas.UnitWidth, canvas.UnitHeight)
+	}
+	return s.persistImportDraft(pkg, cropped)
 }
 
 func resizeNearest(src *image.RGBA, width, height int) *image.RGBA {
