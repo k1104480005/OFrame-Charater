@@ -36,6 +36,9 @@ type TaskSummary struct {
 	RetryCount int        `json:"retryCount"`
 	CreatedAt  string     `json:"createdAt"`
 	UpdatedAt  string     `json:"updatedAt"`
+	// Live 标记该任务正在本会话内执行；queued/running 且非 live 的行才是
+	// 上次会话的中断遗留（一键续跑只针对它们）。
+	Live bool `json:"live"`
 }
 
 // bgCtx returns the app context, falling back to context.Background() so
@@ -63,6 +66,7 @@ func (a *App) TaskList() ([]TaskSummary, error) {
 		out = append(out, TaskSummary{
 			ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
 			Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+			Live: v.Live,
 		})
 	}
 	return out, nil
@@ -81,7 +85,26 @@ func (a *App) TaskGet(id string) (TaskSummary, error) {
 	return TaskSummary{
 		ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
 		Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+		Live: v.Live,
 	}, nil
+}
+
+// TaskDelete removes a finished task from the drawer history.
+func (a *App) TaskDelete(id string) error {
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	return svc.TaskDelete(id)
+}
+
+// TaskDeleteFinished removes all successful and abandoned task history rows.
+func (a *App) TaskDeleteFinished() (int, error) {
+	svc, err := a.service()
+	if err != nil {
+		return 0, err
+	}
+	return svc.TaskDeleteFinished()
 }
 
 // TaskRetry re-queues and re-executes a failed/abandoned task (task 6.5:

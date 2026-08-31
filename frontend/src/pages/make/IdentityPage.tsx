@@ -2,11 +2,13 @@
 // entries), logical canvas, anchor presets, materials, version history — all
 // over the shared core identity services (tasks 2.3–2.5).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AnchorPresetView, AnchorView, BaseCharacterCandidateView, CurrentModelsView, GenerationPlanView, IdentityView, MaterialView, StylePresetView } from "../../api/client";
-import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, importBaseCharacter, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
+import type { AnchorPresetView, AnchorView, BaseCharacterCandidateView, CurrentModelsView, GenerationPlanView, IdentityView, MaterialView, ProviderInfoView, StylePresetView } from "../../api/client";
+import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, deleteBaseCharacter, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, fetchProviders, fetchTask, fetchTasks, importBaseCharacter, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
 import { useSession } from "../../state/SessionContext";
 import { PixelCanvas } from "../../components/PixelCanvas";
 import { MaterialLightbox } from "../../components/MaterialLightbox";
+import { ImageLightbox } from "../../components/ImageLightbox";
+import type { ImageLightboxSource } from "../../components/ImageLightbox";
 import { ConfirmModal } from "../../components/ConfirmModal";
 import "./IdentityPage.css";
 
@@ -14,14 +16,6 @@ const ROLE_LABEL: Record<string, string> = {
   main_reference: "主参考图",
   auxiliary_reference: "辅助参考图",
   sprite: "既有角色图",
-};
-
-const TASK_STATUS_LABEL: Record<string, string> = {
-  config: "未开始",
-  reviewing: "待确认",
-  generating: "生成中",
-  done: "已完成",
-  error: "失败",
 };
 
 // 常用像素画布预设（正方形）；256×256 是 PerfectPixel 标准，其他尺寸走"自定义"输入。
@@ -35,7 +29,21 @@ const parsePositiveInt = (value: string): number | null => {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 };
 
-export function IdentityPage() {
+// 生成表单状态（身份页只有一张生成表单，没有任务卡列表）：
+// 结果长效归属候选区；进行中状态由右上角任务抽屉承载。
+type GenStatus = "idle" | "reviewing" | "generating" | "done" | "error";
+
+const GEN_STATUS_LABEL: Record<GenStatus, string> = {
+  idle: "未开始",
+  reviewing: "待确认",
+  generating: "生成中",
+  done: "已完成",
+  error: "失败",
+};
+
+const GEN_FORM_STORE_PREFIX = "identity.genForm.";
+
+export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
   const { pkg } = useSession();
   const [view, setView] = useState<IdentityView | null>(null);
   const [presets, setPresets] = useState<AnchorPresetView[]>([]);
@@ -52,7 +60,18 @@ export function IdentityPage() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<BaseCharacterCandidateView[]>([]);
   const [styles, setStyles] = useState<StylePresetView[]>([]);
-  const [tasks, setTasks] = useState<Array<{ id: number; description: string; style: string; styleCustom?: string; customPrompt?: boolean; status: "config" | "reviewing" | "generating" | "done" | "error"; error?: string; plan?: GenerationPlanView }>>([]);
+  // 生成表单（单实例）：
+  const [genStyle, setGenStyle] = useState("pixel");
+  const [genStyleCustom, setGenStyleCustom] = useState("");
+  const [genCustomPrompt, setGenCustomPrompt] = useState(false);
+  const [genDescription, setGenDescription] = useState("");
+  const [genProvider, setGenProvider] = useState("");
+  const [genModel, setGenModel] = useState("");
+  const [genStatus, setGenStatus] = useState<GenStatus>("idle");
+  const [genError, setGenError] = useState<string | null>(null);
+  const [genPlan, setGenPlan] = useState<GenerationPlanView | null>(null);
+  const [genPlanId, setGenPlanId] = useState<string | null>(null);
+  const [genStartedAt, setGenStartedAt] = useState<number | null>(null);
   const [candidateLoading, setCandidateLoading] = useState(true);
   const [candidateError, setCandidateError] = useState<string | null>(null);
   const [stylesError, setStylesError] = useState<string | null>(null);
@@ -63,10 +82,13 @@ export function IdentityPage() {
   const [previewMaterial, setPreviewMaterial] = useState<MaterialView | null>(null);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
   const [models, setModels] = useState<CurrentModelsView | null>(null);
-  const [nextTaskId, setNextTaskId] = useState(1);
+  const [providers, setProviders] = useState<ProviderInfoView[]>([]);
+  const [previewCandidate, setPreviewCandidate] = useState<ImageLightboxSource | null>(null);
+  const [candidateToAdopt, setCandidateToAdopt] = useState<BaseCharacterCandidateView | null>(null);
+  const [candidateToDelete, setCandidateToDelete] = useState<BaseCharacterCandidateView | null>(null);
   // 未保存草稿（.draft sidecar）：切换视图/任务运行/应用重启后恢复。
   const [draftLoaded, setDraftLoaded] = useState(false);
-  const taskActionInFlight = useRef(new Set<number>());
+  const genInFlight = useRef(false);
 
   const loadCandidates = useCallback(async () => {
     setCandidateLoading(true);
@@ -111,19 +133,85 @@ export function IdentityPage() {
     void loadCandidates();
     void loadThumbs();
     fetchCurrentModels().then(setModels).catch(() => setModels(null));
+    fetchProviders().then(setProviders).catch(() => setProviders([]));
     void fetchPresetCatalog().then((catalog) => {
       setStyles(catalog.styles);
       setStylesError(null);
     }).catch((e) => setStylesError(String(e)));
   }, [load, loadCandidates, loadThumbs, pkg]);
 
+  // 生成表单初始化（每个身份包一次）：
+  //   1. 恢复上次表单配置（风格/模型/自定义提示词）——切标签/重启不丢；
+  //   2. 探测队列中本会话之前未完成的生成任务 → 恢复“生成中”并轮询终态。
+  const genFormRestored = useRef(false);
+  const genFormKey = pkg ? `${GEN_FORM_STORE_PREFIX}${pkg.path}` : null;
   useEffect(() => {
-    if (view && tasks.length === 0) {
-      const style = styles[0]?.id || "pixel";
-      setTasks([{ id: nextTaskId, description: "", style, status: "config" }]);
-      setNextTaskId((id) => id + 1);
+    if (!view || !genFormKey || genFormRestored.current) return;
+    genFormRestored.current = true;
+    try {
+      const raw = localStorage.getItem(genFormKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as { style?: string; styleCustom?: string; customPrompt?: boolean; provider?: string; model?: string };
+        if (saved.style) setGenStyle(saved.style);
+        if (typeof saved.styleCustom === "string") setGenStyleCustom(saved.styleCustom);
+        if (typeof saved.customPrompt === "boolean") setGenCustomPrompt(saved.customPrompt);
+        if (typeof saved.provider === "string") setGenProvider(saved.provider);
+        if (typeof saved.model === "string") setGenModel(saved.model);
+      }
+    } catch {
+      /* 配置存档损坏时使用默认值 */
     }
-  }, [view, styles, nextTaskId, tasks.length]);
+    // 进行中的生成（上次会话遗留）：恢复“生成中”并轮询终态（任务 id == 计划 id）。
+    void fetchTasks()
+      .then((rows) => {
+        const live = rows.find((t) => t.kind === "base-character" && (t.status === "running" || t.status === "queued"));
+        if (!live) return;
+        setGenStatus("generating");
+        setGenPlanId(live.id);
+        setGenStartedAt(new Date(live.createdAt).getTime() || Date.now());
+      })
+      .catch(() => undefined);
+  }, [view, genFormKey]);
+
+  // 表单配置存档：变化即写 localStorage（不含生成状态——那归任务队列管）。
+  useEffect(() => {
+    if (!genFormKey || !genFormRestored.current) return;
+    try {
+      localStorage.setItem(genFormKey, JSON.stringify({ style: genStyle, styleCustom: genStyleCustom, customPrompt: genCustomPrompt, provider: genProvider, model: genModel }));
+    } catch {
+      /* 存储失败不阻塞生成 */
+    }
+  }, [genStyle, genStyleCustom, genCustomPrompt, genProvider, genModel, genFormKey]);
+
+  // 生成中轮询任务队列：切标签/重启后也能感知终态（任务 id == 计划 id）。
+  useEffect(() => {
+    if (genStatus !== "generating" || !genPlanId) return;
+    const iv = window.setInterval(() => {
+      void fetchTask(genPlanId)
+        .then((row) => {
+          if (row.status === "succeeded") {
+            setGenStatus("done");
+            void loadCandidates();
+          } else if (row.status === "failed") {
+            setGenStatus("error");
+            setGenError(row.error || "生成失败");
+          } else if (row.status === "abandoned") {
+            setGenStatus("error");
+            setGenError("任务已放弃");
+          }
+        })
+        .catch(() => undefined);
+    }, 2500);
+    return () => window.clearInterval(iv);
+  }, [genStatus, genPlanId, loadCandidates]);
+
+  // 生成中每秒跳动一次，驱动“已用 N 秒”计时显示。
+  const [, setElapsedTick] = useState(0);
+  useEffect(() => {
+    if (genStatus !== "generating") return;
+    const iv = window.setInterval(() => setElapsedTick((x) => x + 1), 1000);
+    return () => window.clearInterval(iv);
+  }, [genStatus]);
 
   const flash = (msg: string) => {
     setOkMsg(msg);
@@ -132,17 +220,27 @@ export function IdentityPage() {
 
   const savedDescription = view?.description ?? "";
   const descriptionDirty = draftLoaded && description !== savedDescription;
-  // 画布输入与已保存规格不一致（或尚无画布）时，才显示保存按钮。
+  // 画布输入与已保存规格不一致（或尚无画布 / 输入非法）时，才显示保存按钮。
   const canvasWNum = parsePositiveInt(canvasW);
   const canvasHNum = parsePositiveInt(canvasH);
   const canvasDirty = view?.canvas
     ? canvasWNum === null || canvasHNum === null || canvasWNum !== view.canvas.unitWidth || canvasHNum !== view.canvas.unitHeight
-    : canvasWNum === null || canvasHNum === null;
+    : true;
   const isAI = view?.baseCharacterSource === "ai";
+  // 采用即定稿：身份基准一旦采用，描述/参考图/画布/生成（导入）阶段全部锁定。
+  const basisAdopted = Boolean(view?.baseCharacterId);
   // 参考图容量：1 主参考图 + 最多 2 辅助参考图（界面前置拦截，后端仍兜底校验）。
   const mainRefCount = view?.materials.filter((m) => m.role === "main_reference").length ?? 0;
   const auxRefCount = view?.materials.filter((m) => m.role === "auxiliary_reference").length ?? 0;
   const refsFull = mainRefCount >= 1 && auxRefCount >= 2;
+  const imageProviders = providers.filter((p) => p.image && (p.imageModels.length > 0 || p.imageModel));
+  const selectedProvider = imageProviders.find((p) => p.id === genProvider)
+    ?? imageProviders.find((p) => p.id === models?.providerId)
+    ?? imageProviders[0];
+  const selectedProviderId = selectedProvider?.id ?? "";
+  const selectedImageModels = selectedProvider
+    ? Array.from(new Set([...(selectedProvider.imageModels ?? []), selectedProvider.imageModel].filter(Boolean)))
+    : (models?.imageModels ?? []);
 
   // 描述变更防抖写入草稿 sidecar（仅在有实际改动时）。
   useEffect(() => {
@@ -249,81 +347,112 @@ export function IdentityPage() {
     });
   };
 
-  const updateTask = (id: number, patch: Partial<(typeof tasks)[number]>) =>
-    setTasks((items) => items.map((task) => task.id === id ? { ...task, ...patch } : task));
+  // 生成确认门（generation spec）：prepare 只计算计划不外呼；用户在确认弹窗
+  // 看到 provider/model/预算/提示词后，确认才执行，取消零调用。
+  const genBusy = genStatus === "generating";
 
-  // 生成确认门（generation spec）：prepare 只计算计划不外呼；用户在
-  // reviewing 状态看到 provider/model/预算/提示词后，确认才执行，取消零调用。
-  const prepareTask = async (task: (typeof tasks)[number]) => {
-    if (taskActionInFlight.current.has(task.id)) return;
+  const resetGenResult = () => {
+    setGenPlan(null);
+    if (genStatus === "done") setGenStatus("idle");
+  };
+
+  const startGeneration = async () => {
+    if (genInFlight.current || genBusy) return;
     // 后端生成读取的是"已保存"的描述与画布，未保存内容不会进入请求，
     // 因此存在未保存修改时禁止生成确认，避免用户误以为草稿已生效。
-    // 勾选了任务级自定义提示词的任务不受身份描述未保存的影响。
+    // 勾选了任务级自定义提示词时不受身份描述未保存的影响。
     const blockers: string[] = [];
-    if (descriptionDirty && !task.customPrompt) blockers.push("角色描述");
+    if (descriptionDirty && !genCustomPrompt) blockers.push("角色描述");
     if (canvasDirty) blockers.push("单元尺寸");
     if (blockers.length > 0) {
-      updateTask(task.id, { error: `${blockers.join("与")}尚未保存 —— 请先保存，再生成确认` });
+      setGenStatus("error");
+      setGenError(`${blockers.join("与")}尚未保存 —— 请先保存，再生成`);
       return;
     }
-    updateTask(task.id, { status: "reviewing", error: undefined });
-    taskActionInFlight.current.add(task.id);
+    genInFlight.current = true;
+    setGenStatus("reviewing");
+    setGenError(null);
     try {
       const plan = await prepareGeneration({
         packagePath: "",
         baseCharacter: true,
         motionId: "",
-        providerId: "",
-        model: "",
+        providerId: genProvider,
+        model: genModel,
         directions: 0,
-        stylePresetId: task.style === "custom" ? "" : task.style,
-        styleCustom: task.style === "custom" ? (task.styleCustom ?? "").trim() : "",
-        description: task.customPrompt ? task.description : "",
+        stylePresetId: genStyle === "custom" ? "" : genStyle,
+        styleCustom: genStyle === "custom" ? genStyleCustom.trim() : "",
+        description: genCustomPrompt ? genDescription : "",
         actionPresetId: "",
         frameCount: 0,
         maxAttemptsPerDirection: 0,
       });
-      updateTask(task.id, { plan, status: "reviewing" });
+      setGenPlan(plan);
     } catch (e) {
-      updateTask(task.id, { status: "error", error: String(e) });
+      setGenStatus("error");
+      setGenError(String(e));
     } finally {
-      taskActionInFlight.current.delete(task.id);
+      genInFlight.current = false;
     }
   };
 
-  const confirmTask = async (task: (typeof tasks)[number]) => {
-    if (!task.plan || taskActionInFlight.current.has(task.id)) return;
-    taskActionInFlight.current.add(task.id);
-    updateTask(task.id, { status: "generating", error: undefined });
+  const confirmGenerationForm = async () => {
+    if (!genPlan || genInFlight.current) return;
+    genInFlight.current = true;
+    setGenStatus("generating");
+    setGenError(null);
+    setGenPlanId(genPlan.id);
+    setGenStartedAt(Date.now());
     try {
-      const result = await confirmGeneration(task.plan.id, true);
+      const result = await confirmGeneration(genPlan.id, true);
       if (result.status !== "executed" || !result.results?.[0]?.candidateId) {
         throw new Error(result.error || `生成${result.status || "失败"}`);
       }
-      updateTask(task.id, { status: "done" });
+      setGenStatus("done");
       await loadCandidates();
     } catch (e) {
-      updateTask(task.id, { status: "error", error: String(e) });
+      setGenStatus("error");
+      setGenError(String(e));
     } finally {
-      taskActionInFlight.current.delete(task.id);
+      genInFlight.current = false;
     }
   };
 
-  const cancelTask = async (task: (typeof tasks)[number]) => {
-    if (task.plan) await confirmGeneration(task.plan.id, false).catch(() => undefined);
-    updateTask(task.id, { status: "config", plan: undefined });
+  const cancelGenerationForm = async () => {
+    if (genPlan) await confirmGeneration(genPlan.id, false).catch(() => undefined);
+    setGenStatus("idle");
+    setGenPlan(null);
   };
 
-  const removeTask = (task: (typeof tasks)[number]) => {
-    if (task.plan && task.status === "reviewing") void confirmGeneration(task.plan.id, false).catch(() => undefined);
-    setTasks((items) => items.filter((t) => t.id !== task.id));
+  const confirmAdoptCandidate = () => {
+    if (!candidateToAdopt) return;
+    const id = candidateToAdopt.id;
+    setCandidateToAdopt(null);
+    void (async () => {
+      setBusy(`adopt-${id}`);
+      setError(null);
+      try {
+        await adoptBaseCharacter(id);
+        await load();
+        await loadCandidates();
+        flash("候选已采用为身份基准，其余候选已自动弃用");
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setBusy(null);
+      }
+    })();
   };
 
-  const handleAdopt = async (id: string) => {
-    setBusy(`adopt-${id}`);
-    try { await adoptBaseCharacter(id); await load(); await loadCandidates(); }
-    catch (e) { setError(String(e)); }
-    finally { setBusy(null); }
+  const confirmDeleteCandidate = () => {
+    if (!candidateToDelete) return;
+    const cand = candidateToDelete;
+    setCandidateToDelete(null);
+    void run("candidate-delete", async () => {
+      await deleteBaseCharacter(cand.id);
+      await loadCandidates();
+      flash("候选图已删除 —— 记录与图片文件均已移除");
+    });
   };
 
   const handleLockAI = () => setSourceConfirm("ai");
@@ -469,8 +598,11 @@ export function IdentityPage() {
                   <span className="identity__step-title mono">角色描述</span>
                   <span className="identity__step-hint faint">{isAI ? "保存为身份档案，并作为生成提示词的基础" : "仅作为角色档案，不参与本体生成"}</span>
                 </div>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述角色外观、配色、体型…" />
-                {descriptionDirty && (
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述角色外观、配色、体型…" disabled={basisAdopted} />
+                {basisAdopted && (
+                  <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，角色描述已锁定。</div>
+                )}
+                {descriptionDirty && !basisAdopted && (
                   <div className="identity__actions">
                     <button className="pixel-btn pixel-btn--ok" disabled={busy === "desc"} onClick={() => void handleSaveDescription()} title="有未保存的描述修改">
                       {busy === "desc" ? "保存中…" : "保存描述"}
@@ -480,9 +612,9 @@ export function IdentityPage() {
                 <div className="identity__actions identity__actions--left">
                   <button
                     className="pixel-btn"
-                    disabled={busy !== null || !description.trim() || models?.enhanceSupported === false}
+                    disabled={busy !== null || !description.trim() || models?.enhanceSupported === false || basisAdopted}
                     onClick={() => void handleEnhanceDescription()}
-                    title={models?.enhanceSupported === false ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型" : "调用文本模型把简短描述扩写成结构化角色设定 —— 将产生一次文本调用费用；结果填入上方文本框，请检查后保存"}
+                    title={basisAdopted ? "已采用身份基准 —— 角色描述已锁定" : models?.enhanceSupported === false ? "当前未配置可用的文本模型 —— 请在设置中配置增强模型" : "调用文本模型把简短描述扩写成结构化角色设定 —— 将产生一次文本调用费用；结果填入上方文本框，请检查后保存"}
                   >
                     {busy === "enhance" ? "增强中…（最长约 90 秒）" : "AI 增强描述"}
                   </button>
@@ -502,8 +634,11 @@ export function IdentityPage() {
                     <span className="identity__step-title mono">参考图</span>
                     <span className="identity__step-hint faint">主参考图最多 1 张 · 辅助参考图最多 2 张 —— 基础角色与每次动作生成都随请求外发，数量越多花费越高</span>
                   </div>
+                  {basisAdopted && (
+                    <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，参考图已锁定。</div>
+                  )}
                   <div className="row">
-                    <button className="pixel-btn" disabled={busy === "import-reference_image" || refsFull} onClick={() => void handleImport()}>
+                    <button className="pixel-btn" disabled={busy === "import-reference_image" || refsFull || basisAdopted} onClick={() => void handleImport()}>
                       添加参考图
                     </button>
                     <span className="faint">{refsFull ? "已达上限：主参考图 1 张 + 辅助参考图 2 张 —— 可删除素材，或点辅助卡的“设为主参考”调整" : `还可添加 ${3 - mainRefCount - auxRefCount} 张（主参考图 1 张 · 辅助参考图 2 张）`}</span>
@@ -519,9 +654,9 @@ export function IdentityPage() {
                           <div className="faint identity__material-name" title={m.path}>{m.name}</div>
                           <div className="identity__material-actions">
                             {m.role === "auxiliary_reference" && (
-                              <button className="pixel-btn" disabled={busy !== null} onClick={() => void handleSetMain(m.id)} aria-label={`设为主参考图 ${m.name}`} title="把这张辅助参考图设为主参考图（当前主参考图自动改为辅助）">设为主参考</button>
+                              <button className="pixel-btn" disabled={busy !== null || basisAdopted} onClick={() => void handleSetMain(m.id)} aria-label={`设为主参考图 ${m.name}`} title={basisAdopted ? "已采用身份基准 —— 参考图已锁定" : "把这张辅助参考图设为主参考图（当前主参考图自动改为辅助）"}>设为主参考</button>
                             )}
-                            <button className="pixel-btn pixel-btn--warn" disabled={busy !== null} onClick={() => setMaterialToDelete(m)} aria-label={`删除素材 ${m.name}`} title="从身份包中删除此素材文件">删除</button>
+                            <button className="pixel-btn pixel-btn--warn" disabled={busy !== null || basisAdopted} onClick={() => setMaterialToDelete(m)} aria-label={`删除素材 ${m.name}`} title={basisAdopted ? "已采用身份基准 —— 参考图已锁定" : "从身份包中删除此素材文件"}>删除</button>
                           </div>
                         </div>
                       ))}
@@ -536,19 +671,22 @@ export function IdentityPage() {
                   <span className="identity__step-title mono">逻辑画布</span>
                   <span className="identity__step-hint faint">每帧图像的像素网格大小 —— 生成、导入与锚点都以此为准</span>
                 </div>
+                {basisAdopted && (
+                  <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，单元尺寸已锁定。</div>
+                )}
                 <div className="row">
-                  <select value={sizeChoice} onChange={(e) => handleSizeChoice(e.target.value)} aria-label="常用画布尺寸" title="选择常用尺寸，或选自定义输入任意宽高">
+                  <select value={sizeChoice} onChange={(e) => handleSizeChoice(e.target.value)} aria-label="常用画布尺寸" title="选择常用尺寸，或选自定义输入任意宽高" disabled={basisAdopted}>
                     {CANVAS_PRESETS.map((n) => <option key={n} value={`${n}x${n}`}>{n === 256 ? "256 × 256 · PerfectPixel 标准" : `${n} × ${n}`}</option>)}
                     <option value="custom">自定义{canvasW === canvasH && CANVAS_PRESETS.includes(parseInt(canvasW, 10)) ? "" : `（${canvasW} × ${canvasH}）`}</option>
                   </select>
                   {sizeChoice === "custom" && (
                     <>
-                      <input className="identity__num" value={canvasW} onChange={(e) => setCanvasW(e.target.value)} aria-label="画布宽（像素）" />
+                      <input className="identity__num" value={canvasW} onChange={(e) => setCanvasW(e.target.value)} aria-label="画布宽（像素）" disabled={basisAdopted} />
                       <span>×</span>
-                      <input className="identity__num" value={canvasH} onChange={(e) => setCanvasH(e.target.value)} aria-label="画布高（像素）" />
+                      <input className="identity__num" value={canvasH} onChange={(e) => setCanvasH(e.target.value)} aria-label="画布高（像素）" disabled={basisAdopted} />
                     </>
                   )}
-                  {canvasDirty && (
+                  {canvasDirty && !basisAdopted && (
                     <button className="pixel-btn pixel-btn--ok" disabled={busy === "canvas"} onClick={() => void handleSaveCanvas()} title="有未保存的尺寸修改">
                       {busy === "canvas" ? "保存中…" : "保存规格"}
                     </button>
@@ -557,7 +695,7 @@ export function IdentityPage() {
                 <div className="faint identity__step-note">PerfectPixel 标准：256 × 256，每帧保留 24px 安全边距，并自动按质量中心与脚底基线对齐。其他尺寸可自定义。</div>
                 {canvasW === "256" && canvasH === "256" && (
                   <label className="identity__pixelperfect-toggle">
-                    <input type="checkbox" checked={perfectPixelStandard} onChange={handlePerfectPixelToggle} disabled={busy !== null} />
+                    <input type="checkbox" checked={perfectPixelStandard} onChange={handlePerfectPixelToggle} disabled={busy !== null || basisAdopted} />
                     <span>启用 PerfectPixel 标准</span>
                     <span className="faint">24px 安全边距 · 质量中心对齐 · 自动脚底基线</span>
                   </label>
@@ -568,81 +706,101 @@ export function IdentityPage() {
                 <section className="identity__step-card">
                   <span className="identity__step-marker mono">4</span>
                   <div className="identity__step-head">
-                    <span className="identity__step-title mono">生成任务</span>
-                    <span className="identity__step-hint faint">每个任务独立提示词与风格 · 确认门之后才会调用</span>
+                    <span className="identity__step-title mono">生成角色</span>
+                    <span className="identity__step-hint faint">确认门之后才会调用 · 结果长效保存在候选区</span>
                   </div>
+                  {basisAdopted ? (
+                    <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，不可再生成新的候选。</div>
+                  ) : (
+                    <>
                   <div className="row">
-                    <span className="faint">每个任务独立选择风格与提示词{models?.imageModel ? ` · 图像模型：${models.providerName || models.providerId} / ${models.imageModel}` : ""}</span>
-                    <button className="pixel-btn" disabled={tasks.length >= 10 || busy !== null} onClick={() => { const style = tasks.length ? tasks[tasks.length - 1].style : (styles[0]?.id || "pixel"); setTasks((items) => [...items, { id: nextTaskId, description: "", style, status: "config" }]); setNextTaskId((id) => id + 1); }} aria-label="添加生成任务" title="添加生成任务">添加任务</button>
+                    <span className="faint">选择风格与模型后生成{models?.imageModel ? ` · 当前 provider：${models.providerName || models.providerId}` : ""} · 结果保存在下方候选区</span>
                   </div>
                   {stylesError && <div className="error-text">风格目录加载失败：{stylesError}</div>}
-                  <div className="identity__task-list">
-                    {tasks.map((task) => (
-                      <div className="identity__task-card" key={task.id}>
-                        <div className="identity__task-row">
-                          <select value={task.style} onChange={(e) => updateTask(task.id, { style: e.target.value })} aria-label={`任务 ${task.id} 风格`} title="任务风格" disabled={task.status !== "config"}>
-                            {styles.length === 0 && task.style !== "custom" && <option value={task.style}>{task.style}</option>}
+                  <div className="identity__generation-form">
+                    <div className="identity__generation-row">
+                          <select value={genStyle} onChange={(e) => { setGenStyle(e.target.value); resetGenResult(); }} aria-label="生成风格" title="生成风格" disabled={genBusy}>
+                            {styles.length === 0 && genStyle !== "custom" && <option value={genStyle}>{genStyle}</option>}
                             {styles.map((style) => <option key={style.id} value={style.id}>{style.name}</option>)}
                             <option value="custom">自定义风格…</option>
                           </select>
-                          <span className={`mono ${task.status === "error" ? "error-text" : task.status === "done" ? "status-ok" : task.status === "reviewing" ? "status-warn" : "faint"}`}>{TASK_STATUS_LABEL[task.status] ?? task.status}</span>
-                          <span className="identity__task-spacer" />
-                          {task.status === "config" && (
-                            <button className="pixel-btn pixel-btn--primary" onClick={() => void prepareTask(task)} aria-label={`生成确认任务 ${task.id}`} title="先查看生成确认（不发起调用），再决定是否执行">生成确认</button>
+                          <select
+                            value={selectedProviderId}
+                            onChange={(e) => { setGenProvider(e.target.value); setGenModel(""); resetGenResult(); }}
+                            aria-label="生成提供商"
+                            title="选择任务级图像提供商；可使用设置中已配置的其他提供商"
+                            disabled={genBusy || imageProviders.length === 0}
+                          >
+                            {imageProviders.length === 0 && <option value="">暂无可用图像提供商</option>}
+                            {imageProviders.map((p) => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
+                          </select>
+                          <select value={genModel} onChange={(e) => { setGenModel(e.target.value); resetGenResult(); }} aria-label="生成模型" title="选择所选提供商的图像模型；可与当前提供商不同" disabled={genBusy || !selectedProvider}>
+                            <option value="">默认{selectedProvider?.imageModel ? `（${selectedProvider.imageModel}）` : ""}</option>
+                            {selectedImageModels.filter((m) => m !== (selectedProvider?.imageModel ?? "")).map((m) => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <span className={`mono ${genStatus === "error" ? "error-text" : genStatus === "done" ? "status-ok" : genStatus === "reviewing" ? "status-warn" : genStatus === "generating" ? "status-busy" : "faint"}`}>
+                            {genStatus === "generating"
+                              ? `生成中 · 已用 ${Math.max(0, Math.floor((Date.now() - (genStartedAt ?? Date.now())) / 1000))} 秒`
+                              : GEN_STATUS_LABEL[genStatus]}
+                          </span>
+                          <span className="identity__generation-spacer" />
+                          {(genStatus === "idle" || genStatus === "error" || genStatus === "done") && (
+                            <button
+                              className="pixel-btn pixel-btn--primary"
+                              onClick={() => { resetGenResult(); void startGeneration(); }}
+                              aria-label="生成基础角色"
+                              title="先弹出确认（不发起调用），再决定是否执行；可使用同一模型再次生成候选"
+                            >
+                              {genStatus === "error" ? "重试" : "生成"}
+                            </button>
                           )}
-                          <button className="pixel-btn" disabled={task.status === "generating" || tasks.length <= 1} onClick={() => removeTask(task)} aria-label={`移除任务 ${task.id}`} title="移除任务">移除</button>
                         </div>
-                        {task.style === "custom" && (
-                          <input className="pixel-input" value={task.styleCustom ?? ""} onChange={(e) => updateTask(task.id, { styleCustom: e.target.value })} placeholder="自定义风格提示词（英文更稳定），例：dark fantasy pixel art, muted colors" aria-label={`任务 ${task.id} 自定义风格提示词`} title="作为风格片段写入生成提示词，与内置预设同等生效" disabled={task.status !== "config"} />
+                        {genStyle === "custom" && (
+                          <input className="pixel-input" value={genStyleCustom} onChange={(e) => { setGenStyleCustom(e.target.value); resetGenResult(); }} placeholder="自定义风格提示词（英文更稳定），例：dark fantasy pixel art, muted colors" aria-label="自定义风格提示词" title="作为风格片段写入生成提示词，与内置预设同等生效" disabled={genBusy} />
                         )}
                         <div className="faint identity__step-note">
-                          {task.style === "custom"
+                          {genStyle === "custom"
                             ? "自定义风格：上方输入的文字会作为风格片段写入提示词。"
-                            : (() => { const s = styles.find((x) => x.id === task.style); return s ? `${s.name}：${s.description}` : ""; })()}
+                            : (() => { const s = styles.find((x) => x.id === genStyle); return s ? `${s.name}：${s.description}` : ""; })()}
                         </div>
-                                                 {task.style !== "custom" && (() => {
-                           const style = styles.find((x) => x.id === task.style);
-                           return style?.negativePrompt ? (
-                             <div className="faint identity__negative-prompt">
-                               <span className="mono">内置负面提示词：</span>{style.negativePrompt}
-                             </div>
-                           ) : null;
-                         })()}
-                         <label className="identity__task-custom" title="勾选后可为本任务改写提示词；不勾选则使用身份描述">
-                          <input type="checkbox" checked={!!task.customPrompt} disabled={task.status !== "config"} onChange={(e) => updateTask(task.id, { customPrompt: e.target.checked, description: e.target.checked && !task.description ? description : task.description })} />
+                        {genStyle !== "custom" && (() => {
+                          const style = styles.find((x) => x.id === genStyle);
+                          return style?.negativePrompt ? (
+                            <div className="faint identity__negative-prompt">
+                              <span className="mono">内置负面提示词：</span>{style.negativePrompt}
+                            </div>
+                          ) : null;
+                        })()}
+                        <label className="identity__generation-custom" title="勾选后可为本次生成改写提示词；不勾选则使用身份描述">
+                          <input type="checkbox" checked={genCustomPrompt} disabled={genBusy} onChange={(e) => { setGenCustomPrompt(e.target.checked); if (e.target.checked && !genDescription) setGenDescription(description); resetGenResult(); }} />
                           <span className="faint">自定义提示词（默认使用身份描述）</span>
                         </label>
-                        {task.customPrompt && (
-                          <input className="pixel-input" value={task.description} onChange={(e) => updateTask(task.id, { description: e.target.value })} aria-label={`任务 ${task.id} 生成提示词`} title="本次生成的提示词覆盖 —— 只影响此任务，不改变身份描述" placeholder="生成提示词（默认取身份描述）" disabled={task.status !== "config"} />
+                        {genCustomPrompt && (
+                          <input className="pixel-input" value={genDescription} onChange={(e) => { setGenDescription(e.target.value); resetGenResult(); }} aria-label="生成提示词" title="本次生成的提示词覆盖 —— 只影响本次生成，不改变身份描述" placeholder="生成提示词（默认取身份描述）" disabled={genBusy} />
                         )}
-                        {task.error && <div className="error-text">{task.error}</div>}
-                        {task.status === "reviewing" && task.plan && (
-                          <details className="identity__task-plan" open>
-                            <summary className="mono">生成确认详情</summary>
-                            <div className="pixel-panel gen-plan">
-                              <ul className="mono gen-plan__list">
-                                <li>
-                                  provider / model：{task.plan.providerId} / {task.plan.model}
-                                  {task.plan.providerType ? `（协议：${task.plan.providerType}）` : ""}
-                                </li>
-                                <li>预计调用量：{task.plan.expectedCalls} 次 · 总尝试上限 {task.plan.maxTotalAttempts} 次</li>
-                                <li>预算：约 {task.plan.expectedCost.toFixed(2)} {task.plan.currency}（上限 {task.plan.maxCost.toFixed(2)} {task.plan.currency}）</li>
-                                <li>外发素材：{(task.plan.outboundMaterials ?? []).length} 个{(task.plan.outboundMaterials ?? []).length > 0 ? "（主参考图 / 辅助参考图随请求发送）" : ""}</li>
-                                <li className="gen-plan__prompt">
-                                  提示词快照（{task.plan?.prompt.stylePresetId === "custom" ? "自定义风格" : styles.find((s) => s.id === task.plan?.prompt.stylePresetId)?.name ?? task.plan?.prompt.stylePresetId}，{task.plan?.prompt.frameCount} 帧）：
-                                  <div className="faint">{task.plan.prompt.prompt}</div>
-                                </li>
-                              </ul>
-                              <div className="row">
-                                <button className="pixel-btn pixel-btn--primary" onClick={() => void confirmTask(task)} aria-label="确认执行生成">确认执行</button>
-                                <button className="pixel-btn" onClick={() => void cancelTask(task)} aria-label="取消生成">取消（不发起调用）</button>
+                        {genStatus === "error" && genError && (
+                          <div className="error-text">
+                            {genError}
+                            {genError.includes("context deadline exceeded") && (
+                              <div className="faint">
+                                免费网关高峰期常见：请求已发出但网关迟迟不返回。可稍后重试、减少参考图（尤其大图）再试，或在设置中更换 Provider / 调整单次超时秒数。
                               </div>
-                            </div>
-                          </details>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    ))}
+                        {genStatus === "generating" && (
+                          <div className="faint identity__step-note">
+                            已提交任务队列 —— provider 通常需要 1-3 分钟，进度与失败原因见右上角「任务」抽屉。
+                            {onOpenTasks && (
+                              <button className="pixel-btn" onClick={onOpenTasks} aria-label="查看任务进度" title="打开任务抽屉查看实时进度">
+                                查看进度
+                              </button>
+                            )}
+                          </div>
+                        )}
                   </div>
+                    </>
+                  )}
                 </section>
               )}
 
@@ -654,11 +812,14 @@ export function IdentityPage() {
                     <span className="identity__step-hint faint">与逻辑画布尺寸一致 · 不调用外部 AI</span>
                   </div>
                   <div className="row">
-                    <button className="pixel-btn pixel-btn--primary" disabled={busy !== null} onClick={() => void handleImportBase()}>
+                    <button className="pixel-btn pixel-btn--primary" disabled={busy !== null || basisAdopted} onClick={() => void handleImportBase()} title={basisAdopted ? "已采用身份基准 —— 身份生成阶段已完成" : "导入本地角色图作为候选"}>
                       导入角色图
                     </button>
                     <span className="faint">当前画布：{view.canvas ? `${view.canvas.unitWidth} × ${view.canvas.unitHeight}` : "未设置"}</span>
                   </div>
+                  {basisAdopted && (
+                    <div className="identity__locked-note">已采用身份基准 —— 身份生成阶段已完成，不可再导入新的候选。</div>
+                  )}
                 </section>
               )}
 
@@ -678,17 +839,43 @@ export function IdentityPage() {
                   <div className="empty-state">{view.baseCharacterSource === "ai" ? "尚未生成候选 —— 完成生成任务并确认执行" : "尚未导入角色图"}</div>
                 ) : candidates.length > 0 ? (
                   <div className="identity__candidates">
-                    {candidates.map((candidate) => {
-                      const adopted = view.baseCharacterId === candidate.id;
-                      return (
-                        <div className={`pixel-panel identity__candidate${adopted ? " identity__candidate--adopted" : ""}`} key={candidate.id}>
-                          <img src={`data:image/png;base64,${candidate.png}`} alt="基础角色候选" />
-                          <div className="mono">{adopted ? "已采用" : candidate.status === "pending" ? "待采用" : candidate.status === "rejected" ? "已弃用" : candidate.status}</div>
-                          <div className="faint">{candidate.provider === "import" ? "本地导入" : `${candidate.provider} · ${candidate.model}`}</div>
-                          <button className="pixel-btn" disabled={busy !== null || adopted || candidate.status === "rejected"} onClick={() => void handleAdopt(candidate.id)} aria-label="采用此候选" title={candidate.status === "rejected" ? "已弃用候选不能重新采用" : "采用此候选"}>采用</button>
-                        </div>
-                      );
-                    })}
+                    {[...candidates]
+                      .sort((a, b) => Number(b.id === view.baseCharacterId) - Number(a.id === view.baseCharacterId))
+                      .map((candidate) => {
+                        const adopted = view.baseCharacterId === candidate.id;
+                        const pending = candidate.status === "pending";
+                        const rejected = candidate.status === "rejected";
+                        return (
+                          <div className={`pixel-panel identity__candidate${adopted ? " identity__candidate--adopted" : ""}`} key={candidate.id}>
+                            {adopted && (
+                              <span className="identity__candidate-adopted-mark mono">✓ 已采用</span>
+                            )}
+                            {!adopted && (
+                              <button className="identity__candidate-delete" disabled={busy !== null} onClick={() => setCandidateToDelete(candidate)} aria-label={`删除候选 ${candidate.id.slice(0, 8)}`} title={pending ? "删除此候选图（记录与图片文件一并移除，需确认）" : "删除此已弃用候选图（记录与图片文件一并移除，需确认）"}>
+                                ✕
+                              </button>
+                            )}
+                            <img src={`data:image/png;base64,${candidate.png}`} alt="基础角色候选" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${candidate.png}`, title: `候选 ${candidate.id.slice(0, 8)}` })} />
+                            <div className={`mono identity__candidate-badge${adopted ? " identity__candidate-badge--adopted" : rejected ? " identity__candidate-badge--rejected" : ""}`}>
+                              {adopted ? "已采用" : pending ? "待采用" : rejected ? "已弃用" : candidate.status}
+                            </div>
+                            <div className="faint">{candidate.provider === "import" ? "本地导入" : `${candidate.provider} · ${candidate.model}`}</div>
+                            {pending && (
+                              <div className="row">
+                                <button
+                                  className="pixel-btn pixel-btn--primary"
+                                  disabled={busy !== null}
+                                  onClick={() => setCandidateToAdopt(candidate)}
+                                  aria-label="采用此候选"
+                                  title="采用此候选前需要二次确认"
+                                >
+                                  采用
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 ) : null}
               </section>
@@ -753,6 +940,71 @@ export function IdentityPage() {
       )}
 
       <MaterialLightbox material={previewMaterial} onClose={() => setPreviewMaterial(null)} />
+
+      <ImageLightbox source={previewCandidate} onClose={() => setPreviewCandidate(null)} />
+
+      <ConfirmModal
+        open={candidateToAdopt !== null}
+        title="采用候选"
+        message={candidateToAdopt ? (
+          <div className="candidate-confirm">
+            <img src={`data:image/png;base64,${candidateToAdopt.png}`} alt="待采用候选预览" />
+            <div className="col">
+              <span>确定采用这张候选图作为身份基准吗？</span>
+              <span className="faint">采用后其他候选将自动标记为“已弃用”，不能再采用。</span>
+            </div>
+          </div>
+        ) : ""}
+        confirmLabel="确认采用"
+        cancelLabel="取消"
+        onConfirm={confirmAdoptCandidate}
+        onCancel={() => setCandidateToAdopt(null)}
+      />
+
+      <ConfirmModal
+        open={candidateToDelete !== null}
+        title="删除候选"
+        message={candidateToDelete ? (
+          <div className="candidate-confirm">
+            <img src={`data:image/png;base64,${candidateToDelete.png}`} alt="待删除候选预览" />
+            <div className="col">
+              <span>确定删除这张候选图吗？</span>
+              <span className="faint">候选记录与图片文件将从身份包中永久移除，无法恢复。</span>
+            </div>
+          </div>
+        ) : ""}
+        confirmLabel="确认删除"
+        cancelLabel="取消"
+        danger
+        onConfirm={confirmDeleteCandidate}
+        onCancel={() => setCandidateToDelete(null)}
+      />
+
+      {genStatus === "reviewing" && genPlan && (
+        <ConfirmModal
+          open
+          title="生成确认"
+          confirmLabel="确认执行"
+          cancelLabel="取消（不发起调用）"
+          onConfirm={() => void confirmGenerationForm()}
+          onCancel={() => void cancelGenerationForm()}
+          message={
+            <ul className="mono gen-plan__list">
+              <li>
+                provider / model：{genPlan.providerId} / {genPlan.model}
+                {genPlan.providerType ? `（协议：${genPlan.providerType}）` : ""}
+              </li>
+              <li>预计调用量：{genPlan.expectedCalls} 次 · 总尝试上限 {genPlan.maxTotalAttempts} 次</li>
+              <li>预算：约 {genPlan.expectedCost.toFixed(2)} {genPlan.currency}（上限 {genPlan.maxCost.toFixed(2)} {genPlan.currency}）</li>
+              <li>外发素材：{(genPlan.outboundMaterials ?? []).length} 个{(genPlan.outboundMaterials ?? []).length > 0 ? "（主参考图 / 辅助参考图随请求发送）" : ""}</li>
+              <li className="gen-plan__prompt">
+                提示词快照（{genPlan.prompt.stylePresetId === "custom" ? "自定义风格" : styles.find((s) => s.id === genPlan.prompt.stylePresetId)?.name ?? genPlan.prompt.stylePresetId}，{genPlan.prompt.frameCount} 帧）：
+                <div className="faint">{genPlan.prompt.prompt}</div>
+              </li>
+            </ul>
+          }
+        />
+      )}
 
       <ConfirmModal
         open={materialToDelete !== null}

@@ -65,7 +65,7 @@ function WorkbenchContent({ pkg, close }: { pkg: ReturnType<typeof useSession>["
         <main className="main__workspace">
           <Tabs<TopTab> tabs={TOP_TABS} active={tab} onChange={setTab} aria-label="主标签" />
           <div className="main__content">
-            {tab === "identity" && <IdentityPage />}
+            {tab === "identity" && <IdentityPage onOpenTasks={() => drawerHandle.current.open()} />}
             {tab === "motion" && <MotionPage />}
             {tab === "acceptance" && <AcceptanceTab />}
             {tab === "export" && <ExportTab />}

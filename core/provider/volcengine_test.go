@@ -874,7 +874,7 @@ func TestVolcengineWireIdentityDiffersFromCompatibleAndDashscope(t *testing.T) {
 		t.Error("ark body leaked the compatible surface's reference_images contract")
 	}
 	// Body 证据 ②：兼容表面走它自己的 reference_images 对象数组 + response_format
-	// png + n=1，且从不发 image/watermark —— 两套契约互斥，谁顶替谁都立刻现形。
+	// b64_json + n=1，且从不发 image/watermark —— 两套契约互斥，谁顶替谁都立刻现形。
 	dbRefs, ok := dbBody["reference_images"].([]any)
 	if !ok || len(dbRefs) != 1 {
 		t.Fatalf("compatible reference_images = %v", dbBody["reference_images"])
@@ -882,8 +882,8 @@ func TestVolcengineWireIdentityDiffersFromCompatibleAndDashscope(t *testing.T) {
 	if first, mok := dbRefs[0].(map[string]any); !mok || first["role"] != "main_reference" {
 		t.Errorf("compatible refs keep role objects, got %v", dbRefs[0])
 	}
-	if got := dbBody["response_format"]; got != "png" {
-		t.Errorf("compatible response_format = %v, want png", got)
+	if got := dbBody["response_format"]; got != "b64_json" {
+		t.Errorf("compatible response_format = %v, want b64_json", got)
 	}
 	if !eqNum(dbBody["n"], 1) {
 		t.Errorf("compatible n = %v, want 1", dbBody["n"])

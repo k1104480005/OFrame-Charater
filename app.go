@@ -79,6 +79,7 @@ func (a *App) tasksListOrEmpty() []TaskSummary {
 		out = append(out, TaskSummary{
 			ID: v.ID, Kind: v.Kind, Status: TaskStatus(v.Status), Progress: v.Progress,
 			Error: v.Error, RetryCount: v.RetryCount, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt,
+			Live: v.Live,
 		})
 	}
 	return out

@@ -33,6 +33,29 @@
   white-space: pre-line;
 }
 
+.candidate-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.candidate-adopt-confirm img {
+  width: 160px;
+  height: 160px;
+  flex: 0 0 160px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: var(--bg-inset);
+  border-radius: var(--radius-sm);
+}
+
+.candidate-adopt-confirm .col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .confirm-modal__actions {
   justify-content: flex-end;
   margin-top: var(--space-1);

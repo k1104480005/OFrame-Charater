@@ -159,6 +159,40 @@ func (s *Store) List() ([]Task, error) {
 	return out, nil
 }
 
+// Delete removes a finished task from the visible task history. Active tasks
+// cannot be deleted so a running operation cannot disappear from the queue.
+func (s *Store) Delete(id string) error {
+	t, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+	if !t.IsFinished() {
+		return fmt.Errorf("task: %s is not finished (status %s)", id, t.Status)
+	}
+	if _, err := s.db.Exec(`DELETE FROM tasks WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("task: delete %s: %w", id, err)
+	}
+	s.fire()
+	return nil
+}
+
+// DeleteFinished removes all terminal task rows that no longer need review.
+// Active and failed tasks remain available for progress, retry, or abandonment.
+func (s *Store) DeleteFinished() (int, error) {
+	result, err := s.db.Exec(`DELETE FROM tasks WHERE status IN (?, ?)`, StatusSucceeded, StatusAbandoned)
+	if err != nil {
+		return 0, fmt.Errorf("task: delete finished: %w", err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("task: count deleted finished: %w", err)
+	}
+	if n > 0 {
+		s.fire()
+	}
+	return int(n), nil
+}
+
 // Unfinished returns the tasks that were interrupted before finishing (queued
 // or running) — the ones a persistent session resumes after a crash/shutdown/
 // network failure (task 6.3: 一键续跑).

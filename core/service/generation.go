@@ -495,26 +495,30 @@ func (s *Service) ConfirmGeneration(ctx context.Context, planID string, accept b
 	}
 
 	// Idempotent dedup (task 6.4 / 4.8): an identical already-successful task
-	// reuses the cached result without a new external call.
+	// reuses the cached result without a new external call. Base-character
+	// generation is intentionally excluded: every confirmed submission is a new
+	// candidate, even when its model, prompt, and style are identical.
 	fp := planFingerprint(plan)
-	if cached, hit, err := s.queueStore.CacheGet(fp); err == nil && hit && fp != "" {
-		var cachedRes GenerationResult
-		if json.Unmarshal([]byte(cached), &cachedRes) == nil {
-			// Persist the dedup as a succeeded task row so the drawer shows it.
-			t, terr := s.createTaskForPlan(plan, fp)
-			if terr == nil {
-				_, _ = s.queueStore.Update(t.ID, func(tt *task.Task) error {
-					tt.Status = task.StatusSucceeded
-					tt.Progress = 1
-					tt.Result = cached
-					tt.Error = "reused cached success result (idempotent dedup, no external call)"
-					return nil
-				})
+	if plan.Kind != PlanKindBaseCharacter {
+		if cached, hit, err := s.queueStore.CacheGet(fp); err == nil && hit && fp != "" {
+			var cachedRes GenerationResult
+			if json.Unmarshal([]byte(cached), &cachedRes) == nil {
+				// Persist the dedup as a succeeded task row so the drawer shows it.
+				t, terr := s.createTaskForPlan(plan, fp)
+				if terr == nil {
+					_, _ = s.queueStore.Update(t.ID, func(tt *task.Task) error {
+						tt.Status = task.StatusSucceeded
+						tt.Progress = 1
+						tt.Result = cached
+						tt.Error = "reused cached success result (idempotent dedup, no external call)"
+						return nil
+					})
+				}
+				s.plans.setStatus(planID, PlanExecuted)
+				s.log.Info("generation deduplicated", "plan", planID, "fingerprint", fp, "callsMade", cachedRes.CallsMade)
+				cachedRes.PlanID = planID
+				return &cachedRes, nil
 			}
-			s.plans.setStatus(planID, PlanExecuted)
-			s.log.Info("generation deduplicated", "plan", planID, "fingerprint", fp, "callsMade", cachedRes.CallsMade)
-			cachedRes.PlanID = planID
-			return &cachedRes, nil
 		}
 	}
 
@@ -822,9 +826,11 @@ func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, 
 	policy := provider.PolicyFromConfig(cfg)
 	attempts := 0
 	var result *provider.ImageResult
-	callCtx, cancel := context.WithTimeout(ctx, cfg.EffectiveTimeout())
-	defer cancel()
-	err := provider.CallWithRetry(callCtx, policy, func(ctx context.Context) error {
+	// 不在 service 层再包统一超时：适配器对每一次尝试都施加 cfg 超时
+	// （applyTimeout，provider 测试断言了这一点）。这里若再包一层窗口，
+	// 所有重试会共享一个递减的截止时间——慢生图第一次尝试用完预算后，
+	// 后续重试必然瞬间超时，重试机制形同虚设。
+	err := provider.CallWithRetry(ctx, policy, func(ctx context.Context) error {
 		attempts++
 		r, err := prov.GenerateImage(ctx, req)
 		if err != nil {

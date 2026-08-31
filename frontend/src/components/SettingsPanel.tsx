@@ -110,7 +110,7 @@ const toDraft = (c: ProviderConfigView): Draft => ({
   cliRefImageArg: c.cliRefImageArg ?? "",
   cliExtraArgs: (c.cliExtraArgs ?? []).join("\n"),
   maxAttempts: String(c.maxAttempts > 0 ? c.maxAttempts : 3),
-  timeoutSec: String(c.timeoutSec > 0 ? c.timeoutSec : 60),
+  timeoutSec: String(c.timeoutSec > 0 ? c.timeoutSec : 300),
   pricePerCall: c.pricePerCall > 0 ? String(c.pricePerCall) : "",
   showKey: false,
 });

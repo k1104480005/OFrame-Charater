@@ -255,7 +255,7 @@ func TestCompatibleReferenceImagesContract(t *testing.T) {
 	if gotAuth != "Bearer sk-x" {
 		t.Fatalf("auth = %q", gotAuth)
 	}
-	if gotBody["n"].(float64) != 1 || gotBody["response_format"] != "png" || gotBody["size"] != "1024x1024" {
+	if gotBody["n"].(float64) != 1 || gotBody["response_format"] != "b64_json" || gotBody["size"] != "1024x1024" {
 		t.Fatalf("request basics drifted: %v", gotBody)
 	}
 	refs, _ := gotBody["reference_images"].([]any)

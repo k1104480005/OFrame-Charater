@@ -9,7 +9,11 @@ export function BaseCharacterAdopt(arg1:string):Promise<void>;
 
 export function BaseCharacterCandidatesGet():Promise<Array<main.BaseCharacterCandidateView>>;
 
+export function BaseCharacterDelete(arg1:string):Promise<void>;
+
 export function BaseCharacterImport(arg1:string):Promise<main.BaseCharacterCandidateView>;
+
+export function BaseCharacterReject(arg1:string):Promise<void>;
 
 export function BaseCharacterSourceLock(arg1:string):Promise<void>;
 
@@ -142,6 +146,10 @@ export function ProviderValidate(arg1:string):Promise<string>;
 export function RollbackTo(arg1:number):Promise<Array<main.OperationLogEntryView>>;
 
 export function TaskAbandon(arg1:string):Promise<void>;
+
+export function TaskDelete(arg1:string):Promise<void>;
+
+export function TaskDeleteFinished():Promise<number>;
 
 export function TaskGet(arg1:string):Promise<main.TaskSummary>;
 

@@ -39,14 +39,19 @@ type TaskView struct {
 	Fingerprint   string  `json:"fingerprint,omitempty"`
 	CreatedAt     string  `json:"createdAt"`
 	UpdatedAt     string  `json:"updatedAt"`
+	// Live 标记该任务正在本会话内执行（memory only）。queued/running 且
+	// !live 的行是上次会话的中断遗留，才属于一键续跑的范围。
+	Live bool `json:"live"`
 }
 
-func taskView(t task.Task) TaskView {
+func (s *Service) taskView(t task.Task) TaskView {
+	_, live := s.liveTasks.Load(t.ID)
 	return TaskView{
 		ID: t.ID, Kind: t.Kind, Status: t.Status, Progress: t.Progress,
 		Error: t.Error, RetryCount: t.RetryCount, Provider: t.Provider,
 		ExpectedCalls: t.ExpectedCalls, Fingerprint: t.Fingerprint,
 		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		Live: live,
 	}
 }
 
@@ -58,7 +63,7 @@ func (s *Service) TaskList() ([]TaskView, error) {
 	}
 	out := make([]TaskView, 0, len(all))
 	for _, t := range all {
-		out = append(out, taskView(t))
+		out = append(out, s.taskView(t))
 	}
 	return out, nil
 }
@@ -69,7 +74,17 @@ func (s *Service) TaskGet(id string) (TaskView, error) {
 	if err != nil {
 		return TaskView{}, err
 	}
-	return taskView(t), nil
+	return s.taskView(t), nil
+}
+
+// TaskDelete removes a finished task from the drawer history.
+func (s *Service) TaskDelete(id string) error {
+	return s.queueStore.Delete(id)
+}
+
+// TaskDeleteFinished removes all successful and abandoned task history rows.
+func (s *Service) TaskDeleteFinished() (int, error) {
+	return s.queueStore.DeleteFinished()
 }
 
 // TaskRetry re-queues and immediately re-executes a failed or abandoned task
@@ -109,7 +124,7 @@ func (s *Service) TaskRetry(ctx context.Context, id string) (TaskView, error) {
 	if err != nil {
 		return TaskView{}, err
 	}
-	return taskView(got), nil
+	return s.taskView(got), nil
 }
 
 // TaskAbandon marks a failed task abandoned; it is not executed further
@@ -120,7 +135,7 @@ func (s *Service) TaskAbandon(id string) (TaskView, error) {
 		return TaskView{}, err
 	}
 	s.log.Info("task abandoned", "id", id)
-	return taskView(ab), nil
+	return s.taskView(ab), nil
 }
 
 // TaskResumeAll resumes every unfinished task (queued/running) with one action
@@ -131,11 +146,17 @@ func (s *Service) TaskResumeAll(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	resumed := 0
 	for _, t := range unf {
+		// 本会话正在执行的任务不在续跑范围：它还活着，续跑等于双份执行。
+		if _, live := s.liveTasks.Load(t.ID); live {
+			continue
+		}
 		s.executeTask(ctx, t)
+		resumed++
 	}
-	s.log.Info("unfinished tasks resumed", "count", len(unf))
-	return len(unf), nil
+	s.log.Info("unfinished tasks resumed", "count", resumed)
+	return resumed, nil
 }
 
 // createTaskForPlan persists a queued task for a confirmed plan (the plan is
@@ -170,6 +191,8 @@ func (s *Service) createTaskForPlan(plan *GenerationPlan, fp string) (task.Task,
 // task row as progress advances (task 6.2: 状态与进度展示). The task must have
 // a decodable plan payload.
 func (s *Service) executeTask(ctx context.Context, t task.Task) {
+	s.liveTasks.Store(t.ID, struct{}{})
+	defer s.liveTasks.Delete(t.ID)
 	plan, err := decodePlanPayload(t)
 	if err != nil {
 		s.queueStore.Update(t.ID, func(tt *task.Task) error {

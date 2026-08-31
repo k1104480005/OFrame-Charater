@@ -152,7 +152,9 @@ func OpenWithLogger(root string, log *slog.Logger) (*Package, error) {
 		return nil, fmt.Errorf("identity: manifest format version %d is invalid", m.FormatVersion)
 	}
 	log.Info("identity package opened", "path", root, "name", m.Identity.Name, "formatVersion", m.FormatVersion)
-	return &Package{root: root, manifest: *m, log: log}, nil
+	p := &Package{root: root, manifest: *m, log: log}
+	p.normalizeAdoptedBasis()
+	return p, nil
 }
 
 // Save persists the current manifest.

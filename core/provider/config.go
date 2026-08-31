@@ -14,8 +14,11 @@ const (
 	// confirmation: every generated direction may be attempted at most 3 times
 	// in total (1 initial + 2 retries).
 	DefaultMaxAttemptsPerDirection = 3
-	// DefaultTimeout is the per-call HTTP timeout.
-	DefaultTimeout = 60 * time.Second
+	// DefaultTimeout is the per-call HTTP timeout. Image generation on free
+	// gateways routinely takes 1-3 minutes (queueing + diffusion), so the
+	// hang-protection bound is generous; every retry attempt gets a fresh
+	// window (adapters apply it per attempt via applyTimeout).
+	DefaultTimeout = 300 * time.Second
 	// DefaultGenerationSize is the generation resolution used for image calls
 	// (image APIs require large square sizes; the filmstrip pipeline later
 	// maps the logical canvas onto the generated strip).
@@ -117,7 +120,7 @@ type ProviderConfig struct {
 	// using the request's explicit Width/Height.
 	DefaultSize  string  `json:"defaultSize,omitempty"`
 	MaxAttempts  int     `json:"maxAttempts,omitempty"`  // 0 → DefaultMaxAttemptsPerDirection
-	TimeoutSec   int     `json:"timeoutSec,omitempty"`   // 0 → 60
+	TimeoutSec   int     `json:"timeoutSec,omitempty"`   // 0 → 300
 	PricePerCall float64 `json:"pricePerCall,omitempty"` // 0 → provider default estimate
 
 	// CLI fields are used only to build an exec argv array (task 3.2); user

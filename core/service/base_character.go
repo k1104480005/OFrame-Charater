@@ -118,6 +118,27 @@ func (s *Service) AdoptBaseCharacter(pkgPath, candidateID string) error {
 	return pkg.AdoptBaseCharacter(candidateID)
 }
 
+// RejectBaseCharacter marks a pending base-character candidate as rejected
+// (弃用) so it can no longer be adopted. No external call, no basis change.
+func (s *Service) RejectBaseCharacter(pkgPath, candidateID string) error {
+	pkg, err := identity.Open(pkgPath)
+	if err != nil {
+		return err
+	}
+	return pkg.RejectBaseCharacter(candidateID)
+}
+
+// DeleteBaseCharacter deletes a non-adopted candidate record together with its
+// image file (删除候选图). No external call, no basis change — the adopted
+// basis is refused by the identity layer.
+func (s *Service) DeleteBaseCharacter(pkgPath, candidateID string) error {
+	pkg, err := identity.Open(pkgPath)
+	if err != nil {
+		return err
+	}
+	return pkg.DeleteBaseCharacterCandidate(candidateID)
+}
+
 // ImportBaseCharacter records a user-provided sprite image as a PENDING
 // base-character candidate — the second base source beside AI generation.
 // It converges on the SAME review flow (candidate grid → explicit adopt) and
@@ -202,8 +223,19 @@ func (s *Service) runBaseCharacter(ctx context.Context, plan *GenerationPlan, pr
 	if err := pkg.LockBaseCharacterSource(identity.BaseCharacterSourceAI); err != nil {
 		return s.failPlan(plan, res, fmt.Sprintf("lock base character source: %v", err))
 	}
+	if progress != nil {
+		progress(1, 20) // 已提交 provider：5%（provider 调用是最长的一段）
+	}
 
 	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
+	if err != nil {
+		return s.failPlan(plan, res, err.Error())
+	}
+	res.Attempts = attempts
+	res.CallsMade = 1
+	if progress != nil {
+		progress(17, 20) // 已返回并完成解码/量化：85%
+	}
 	if err != nil {
 		return s.failPlan(plan, res, err.Error())
 	}

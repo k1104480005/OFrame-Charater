@@ -116,12 +116,83 @@
 }
 
 .identity__candidate {
+  position: relative;
   width: 160px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
   padding: var(--space-2);
+}
+
+/* 已采用候选：基准徽标 + 强调描边 */
+.identity__candidate--adopted {
+  outline: 2px solid var(--pixel-accent, #d86b3f);
+}
+
+/* 已采用候选右上角绿色角标 */
+.identity__candidate-adopted-mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  background: var(--status-ok);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  z-index: 1;
+}
+
+/* 采用后身份生成阶段完成：锁定提示 */
+.identity__locked-note {
+  font-size: 12px;
+  color: var(--status-ok);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-w) solid var(--status-ok);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  overflow-wrap: anywhere;
+}
+
+.identity__candidate-badge {
+  font-size: 12px;
+}
+
+.identity__candidate-badge--adopted {
+  color: var(--pixel-accent, #d86b3f);
+  font-weight: 700;
+}
+
+.identity__candidate-badge--rejected {
+  color: var(--ink-faint);
+}
+
+/* 待采用候选右上角的删除角标：直接删除候选记录与图片文件 */
+.identity__candidate-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--status-warn);
+  background: var(--bg-panel);
+  border: var(--border-w) solid var(--status-warn);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  z-index: 1;
+}
+
+.identity__candidate-delete:hover {
+  background: var(--bg-elevated);
+  transform: none;
+  box-shadow: none;
 }
 
 .identity__candidate img {
@@ -133,13 +204,27 @@
   border-radius: var(--radius-sm);
 }
 
-.identity__candidate--adopted {
-  outline: 2px solid var(--pixel-accent, #d86b3f);
-}
-
 .identity__candidate .mono,
 .identity__candidate .faint {
   font-size: 12px;
+}
+
+.identity__candidate .row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+}
+
+.identity__candidate .row .pixel-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  justify-content: center;
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
 }
 
 .identity__anchor-preview {
@@ -339,12 +424,19 @@
   min-width: 200px;
 }
 
-/* 任务卡：风格 + 状态 + 操作同一行，附加输入按需展开 */
-.identity__task-card .pixel-input {
+/* 生成表单：参数与状态保持紧凑，结果只进入候选区 */
+.identity__generation-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.identity__generation-form .pixel-input {
   width: 100%;
 }
 
-.identity__task-custom {
+.identity__generation-custom {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -352,53 +444,65 @@
   white-space: nowrap;
 }
 
-/* 生成任务：结构化卡片 + 可折叠确认详情 */
-.identity__task-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.identity__task-card {
-  border: var(--border-w) dashed var(--border-faint);
-  border-radius: var(--radius-sm);
-  background: var(--bg-panel);
-  padding: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.identity__task-row {
+.identity__generation-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+  row-gap: var(--space-2);
 }
 
-.identity__task-spacer {
-  flex: 1;
+.identity__generation-row select {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
-.identity__task-row .pixel-input {
+.identity__generation-spacer {
+  flex: 1 1 24px;
+  min-width: 24px;
+}
+
+.identity__generation-row .pixel-input {
   flex: 1 1 220px;
   min-width: 160px;
 }
 
-.identity__task-plan {
-  border: var(--border-w) solid var(--border-faint);
-  border-radius: var(--radius-sm);
-  background: var(--bg-inset);
-  padding: var(--space-2);
+.identity__generation-form .identity__step-note {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-.identity__task-plan summary {
-  cursor: pointer;
-  font-size: 11px;
+.identity__generation-form .identity__negative-prompt {
+  margin-top: 0;
 }
 
-.identity__task-plan .gen-plan {
-  margin-top: var(--space-2);
+/* 生成确认弹窗中的确认列表：限制高度可滚动，长提示词不撑爆弹窗 */
+.confirm-modal .gen-plan__list {
+  max-height: 48vh;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+/* “生成中”状态：强调色 + 脉冲呼吸，确保执行期间状态醒目 */
+.identity__generation-row .status-busy {
+  color: var(--pixel-accent, #d86b3f);
+  font-weight: 700;
+  animation: identity-busy-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes identity-busy-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* 候选网格图片可点击放大 */
+.identity__candidate img {
+  cursor: zoom-in;
 }
 
 /* PerfectPixel 标准开关 */

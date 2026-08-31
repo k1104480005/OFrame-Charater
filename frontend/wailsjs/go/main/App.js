@@ -14,8 +14,16 @@ export function BaseCharacterCandidatesGet() {
   return window['go']['main']['App']['BaseCharacterCandidatesGet']();
 }
 
+export function BaseCharacterDelete(arg1) {
+  return window['go']['main']['App']['BaseCharacterDelete'](arg1);
+}
+
 export function BaseCharacterImport(arg1) {
   return window['go']['main']['App']['BaseCharacterImport'](arg1);
+}
+
+export function BaseCharacterReject(arg1) {
+  return window['go']['main']['App']['BaseCharacterReject'](arg1);
 }
 
 export function BaseCharacterSourceLock(arg1) {
@@ -280,6 +288,14 @@ export function RollbackTo(arg1) {
 
 export function TaskAbandon(arg1) {
   return window['go']['main']['App']['TaskAbandon'](arg1);
+}
+
+export function TaskDelete(arg1) {
+  return window['go']['main']['App']['TaskDelete'](arg1);
+}
+
+export function TaskDeleteFinished() {
+  return window['go']['main']['App']['TaskDeleteFinished']();
 }
 
 export function TaskGet(arg1) {

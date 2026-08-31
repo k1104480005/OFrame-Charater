@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 )
 
@@ -50,11 +52,49 @@ func (a *Agnes) GenerateImage(ctx context.Context, req ImageRequest) (*ImageResu
 	model := ResolveModel(req.Model, a.cfg.EffectiveModel())
 	ctx, cancel := applyTimeout(ctx, a.cfg.EffectiveTimeout())
 	defer cancel()
-	data, mime, err := imagesGenerations(ctx, a.client, a.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.Width, req.Height, req.References)
+	data, mime, err := agnesImagesGenerate(ctx, a.client, a.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.Width, req.Height, req.References)
 	if err != nil {
 		return nil, err
 	}
 	return &ImageResult{Data: data, MIME: mime, Provider: a.ID(), Model: model}, nil
+}
+
+// agnesImagesGenerate performs one images/generations call using the Agnes
+// gateway's OWN request contract, which deliberately differs from the generic
+// OpenAI-compatible shape (官方文档实测，2026-08-31):
+//   - `response_format` 只能放在 `extra_body` 内部；顶层形状（含历史 "png"）会让
+//     网关把请求吞进永不返回的队列或直接 400；
+//   - `return_base64` 顶层开关实测同样挂起 → 统一走 `extra_body.response_format:
+//     "url"`（实测 11s 出图），响应 data[0].url 由共享解析器下载（不带凭证）；
+//   - 图生图/多图合成的参考图放 `extra_body.image`（Data URI Base64 字符串数组，
+//     无 role 字段）；
+//   - 不传 `n`（未在文档中定义）。
+func agnesImagesGenerate(ctx context.Context, client *http.Client, baseURL, apiKey, model, prompt string, width, height int, refs []ReferenceImage) ([]byte, string, error) {
+	if width <= 0 {
+		width = DefaultGenerationSize
+	}
+	if height <= 0 {
+		height = DefaultGenerationSize
+	}
+	extra := map[string]any{"response_format": "url"}
+	if len(refs) > 0 {
+		imgs := make([]string, 0, len(refs))
+		for _, r := range refs {
+			imgs = append(imgs, "data:"+mimeOr(r.MIME)+";base64,"+base64.StdEncoding.EncodeToString(r.Data))
+		}
+		extra["image"] = imgs
+	}
+	body := map[string]any{
+		"model":      model,
+		"prompt":     prompt,
+		"size":       fmt.Sprintf("%dx%d", width, height),
+		"extra_body": extra,
+	}
+	raw, err := postJSON(ctx, client, baseURL+"/images/generations", apiKey, body)
+	if err != nil {
+		return nil, "", err
+	}
+	return parseImageGenResponse(ctx, client, raw)
 }
 
 // GenerateText performs one chat/completions call — the multimodal text half

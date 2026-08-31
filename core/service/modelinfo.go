@@ -8,6 +8,9 @@ type ModelInfo struct {
 	ProviderID   string `json:"providerId"`
 	ProviderName string `json:"providerName"`
 	ImageModel   string `json:"imageModel,omitempty"` // active provider's resolved image model
+	// ImageModels is the provider's configured image model catalog (设置中
+	// 已添加的图像模型)，供任务级模型下拉只展示可选用的图像模型。
+	ImageModels []string `json:"imageModels,omitempty"`
 	// Enhancement target: the configured enhance association when set,
 	// otherwise the active provider's text model.
 	EnhanceProviderID string `json:"enhanceProviderId,omitempty"`
@@ -35,6 +38,7 @@ func (s *Service) CurrentModelInfo() *ModelInfo {
 		if m, err := provider.ResolveValidatedModel(caps, cfg, provider.ModalityImage, ""); err == nil {
 			out.ImageModel = m
 		}
+		out.ImageModels = append([]string(nil), cfg.ImageModels...)
 	}
 	// Enhancement target: association first, then the active provider.
 	enhanceID := ps.EnhanceProviderID

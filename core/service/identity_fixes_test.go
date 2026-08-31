@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/oframe/character-workbench/core/identity"
+	"github.com/oframe/character-workbench/core/provider"
 )
 
 // TestPrepareGenerationUsesTaskDescriptionOverride verifies the task-level
@@ -42,6 +43,32 @@ func TestPrepareGenerationUsesTaskDescriptionOverride(t *testing.T) {
 	if fallback.Prompt.Description != "a small green pixel hero" {
 		t.Fatalf("prompt description = %q, want saved identity description", fallback.Prompt.Description)
 	}
+}
+
+// TestCurrentModelInfoExposesImageCatalog verifies the model dropdown data
+// source: the provider's configured image model catalog is exposed so the UI
+// can offer only image models that were actually added in settings.
+func TestCurrentModelInfoExposesImageCatalog(t *testing.T) {
+	svc, _ := newTestService(t, nil)
+	info := svc.CurrentModelInfo()
+	if info.ProviderID != provider.ProviderDoubao {
+		t.Fatalf("provider = %q, want doubao", info.ProviderID)
+	}
+	if len(info.ImageModels) == 0 {
+		t.Fatal("image model catalog is empty — the task-level model dropdown would be unusable")
+	}
+	if info.ImageModel != "" && !containsString(info.ImageModels, info.ImageModel) {
+		t.Fatalf("effective image model %q not in catalog %v", info.ImageModel, info.ImageModels)
+	}
+}
+
+func containsString(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 // TestPersistFailureFailsPlan verifies the no-fake-success contract: when the
@@ -154,6 +181,46 @@ func TestConfirmGenerationDecisionIsSingleShot(t *testing.T) {
 	}
 	if _, err := svc.ConfirmGeneration(context.Background(), plan.ID, true); err == nil || !strings.Contains(err.Error(), "already") {
 		t.Fatalf("second decision error = %v, want already-decided refusal", err)
+	}
+}
+
+// TestBaseCharacterSamePlanCreatesDistinctCandidates verifies that an explicit
+// second base-character submission is a fresh provider call rather than an
+// idempotent cache hit, even when every visible generation parameter is the same.
+func TestBaseCharacterSamePlanCreatesDistinctCandidates(t *testing.T) {
+	rt := &fakeRT{handler: func(r *http.Request) (*http.Response, error) {
+		return filmstripResp(t, 32, 32, 4), nil
+	}}
+	svc, _ := newTestService(t, &http.Client{Transport: rt})
+	configureDoubaoKey(t, svc)
+	root := newTestPackage(t)
+	req := GenerationRequest{PackagePath: root, BaseCharacter: true, StylePresetID: "pixel"}
+
+	firstPlan, err := svc.PrepareGeneration(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.ConfirmGeneration(context.Background(), firstPlan.ID, true)
+	if err != nil || first.Status != PlanExecuted {
+		t.Fatalf("first generation: res=%+v err=%v", first, err)
+	}
+
+	secondPlan, err := svc.PrepareGeneration(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.ConfirmGeneration(context.Background(), secondPlan.ID, true)
+	if err != nil || second.Status != PlanExecuted {
+		t.Fatalf("second generation: res=%+v err=%v", second, err)
+	}
+	if got := rt.calls.Load(); got != 2 {
+		t.Fatalf("provider calls = %d, want 2", got)
+	}
+	if got := len(candidatesOf(t, root)); got != 2 {
+		t.Fatalf("candidate count = %d, want 2", got)
+	}
+	if first.Results[0].CandidateID == second.Results[0].CandidateID {
+		t.Fatal("second generation reused the first candidate")
 	}
 }
 

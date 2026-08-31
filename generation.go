@@ -542,12 +542,13 @@ func (a *App) ProviderStats() (*StatsView, error) {
 
 // CurrentModelsView describes the effective models behind current UI actions.
 type CurrentModelsView struct {
-	ProviderID        string `json:"providerId"`
-	ProviderName      string `json:"providerName"`
-	ImageModel        string `json:"imageModel,omitempty"`
-	EnhanceProviderID string `json:"enhanceProviderId,omitempty"`
-	EnhanceModel      string `json:"enhanceModel,omitempty"`
-	EnhanceSupported  bool   `json:"enhanceSupported"`
+	ProviderID        string   `json:"providerId"`
+	ProviderName      string   `json:"providerName"`
+	ImageModel        string   `json:"imageModel,omitempty"`
+	ImageModels       []string `json:"imageModels,omitempty"`
+	EnhanceProviderID string   `json:"enhanceProviderId,omitempty"`
+	EnhanceModel      string   `json:"enhanceModel,omitempty"`
+	EnhanceSupported  bool     `json:"enhanceSupported"`
 }
 
 // CurrentModels resolves the effective image/text models (offline, no probes).
@@ -561,6 +562,7 @@ func (a *App) CurrentModels() (*CurrentModelsView, error) {
 		ProviderID:        m.ProviderID,
 		ProviderName:      m.ProviderName,
 		ImageModel:        m.ImageModel,
+		ImageModels:       m.ImageModels,
 		EnhanceProviderID: m.EnhanceProviderID,
 		EnhanceModel:      m.EnhanceModel,
 		EnhanceSupported:  m.EnhanceSupported,

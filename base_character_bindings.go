@@ -121,3 +121,43 @@ func (a *App) BaseCharacterAdopt(id string) error {
 	_, err = a.openPackage(fresh)
 	return err
 }
+
+// BaseCharacterReject marks a pending base-character candidate as rejected
+// (弃用): it can no longer be adopted. No external call; the identity basis
+// is untouched, so no session event is required — the caller refreshes the
+// candidate list.
+func (a *App) BaseCharacterReject(id string) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	if err := svc.RejectBaseCharacter(pkg.Root(), id); err != nil {
+		return err
+	}
+	a.log.Info("base character rejected", "package", pkg.Root(), "candidate", id)
+	return nil
+}
+
+// BaseCharacterDelete deletes a NON-adopted candidate record together with its
+// image file (删除候选图，需前端弹窗确认). No external call; the identity basis
+// is untouched, so no session event is required — the caller refreshes the
+// candidate list.
+func (a *App) BaseCharacterDelete(id string) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	if err := svc.DeleteBaseCharacter(pkg.Root(), id); err != nil {
+		return err
+	}
+	a.log.Info("base character candidate deleted", "package", pkg.Root(), "candidate", id)
+	return nil
+}

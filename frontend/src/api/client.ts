@@ -5,7 +5,9 @@ import {
   AppInfo,
   BaseCharacterAdopt,
   BaseCharacterCandidatesGet,
+  BaseCharacterDelete,
   BaseCharacterImport,
+  BaseCharacterReject,
   BaseCharacterSourceLock,
   CandidateConsistency,
   CandidateDecide,
@@ -23,6 +25,7 @@ import {
   ExportHistory,
   ExportValidate,
   GenerationPlanConfirm,
+  GenerationPlanGet,
   GenerationPlanPrepare,
   IdentityAddAnchor,
   IdentityAddAnchorPreset,
@@ -70,6 +73,8 @@ import {
   ProviderValidate,
   RollbackTo,
   TaskAbandon,
+  TaskDelete,
+  TaskDeleteFinished,
   TaskGet,
   TaskList,
   TaskResumeAll,
@@ -321,6 +326,16 @@ export async function adoptBaseCharacter(id: string): Promise<void> {
   return BaseCharacterAdopt(id);
 }
 
+/** mark a pending candidate as rejected (弃用) — it can no longer be adopted */
+export async function rejectBaseCharacter(id: string): Promise<void> {
+  return BaseCharacterReject(id);
+}
+
+/** delete a non-adopted candidate record together with its image file (删除候选图) */
+export async function deleteBaseCharacter(id: string): Promise<void> {
+  return BaseCharacterDelete(id);
+}
+
 /**
  * record a local sprite image as a PENDING base-character candidate (the
  * import base source; no external calls). The image must match the logical
@@ -439,6 +454,11 @@ export async function prepareGeneration(req: GenerationRequestView): Promise<Gen
   return GenerationPlanPrepare(req);
 }
 
+/** re-fetch a prepared plan by id（任务卡切标签后恢复确认弹窗用） */
+export async function fetchGenerationPlan(planId: string): Promise<GenerationPlanView> {
+  return GenerationPlanGet(planId);
+}
+
 export async function confirmGeneration(planId: string, accept: boolean): Promise<GenerationResultView> {
   return GenerationPlanConfirm(planId, accept);
 }
@@ -447,6 +467,14 @@ export async function confirmGeneration(planId: string, accept: boolean): Promis
 
 export async function fetchTasks(): Promise<TaskSummary[]> {
   return TaskList();
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  return TaskDelete(id);
+}
+
+export async function deleteFinishedTasks(): Promise<number> {
+  return TaskDeleteFinished();
 }
 
 export async function retryTask(id: string): Promise<void> {

@@ -51,6 +51,12 @@ type Service struct {
 	// package (CandidateSet 保留, task 5.6 / filmstrip 管线接入生成执行链).
 	candMu     sync.Mutex
 	candidates map[string]*pipeline.CandidateSet
+
+	// liveTasks tracks task ids currently executing in THIS process (memory
+	// only, never persisted). The drawer uses it to tell live runs apart from
+	// rows left queued/running by a previous session (中断遗留): 一键续跑
+	// must only offer stale rows and can never double-execute a live task.
+	liveTasks sync.Map
 }
 
 // New creates the shared service: it loads (or initializes) the local

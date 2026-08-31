@@ -183,10 +183,12 @@ func imagesGenerations(ctx context.Context, client *http.Client, baseURL, apiKey
 		height = DefaultGenerationSize
 	}
 	body := map[string]any{
-		"model":           model,
-		"prompt":          prompt,
-		"size":            fmt.Sprintf("%dx%d", width, height),
-		"response_format": "png",
+		"model":  model,
+		"prompt": prompt,
+		"size":   fmt.Sprintf("%dx%d", width, height),
+		// b64_json 让结果内联自包含（与 Ark/MiniMax 适配器同一策略）；Ark 系
+		// 网关只接受 url|b64_json，"png" 这类值会被直接 400 拒绝。
+		"response_format": "b64_json",
 		"n":               1,
 	}
 	if len(refs) > 0 {
@@ -203,6 +205,13 @@ func imagesGenerations(ctx context.Context, client *http.Client, baseURL, apiKey
 	if err != nil {
 		return nil, "", err
 	}
+	return parseImageGenResponse(ctx, client, raw)
+}
+
+// parseImageGenResponse decodes an images/generations payload (b64_json, or
+// url fetched via GET) into image bytes. Shared by the OpenAI-compatible
+// surface and the Agnes-specific surface (same response envelope).
+func parseImageGenResponse(ctx context.Context, client *http.Client, raw []byte) ([]byte, string, error) {
 	var out imageGenResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, "", fmt.Errorf("provider: decode images response: %w", err)

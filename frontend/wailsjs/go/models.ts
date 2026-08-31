@@ -499,6 +499,7 @@ export namespace main {
 	    providerId: string;
 	    providerName: string;
 	    imageModel?: string;
+	    imageModels?: string[];
 	    enhanceProviderId?: string;
 	    enhanceModel?: string;
 	    enhanceSupported: boolean;
@@ -512,6 +513,7 @@ export namespace main {
 	        this.providerId = source["providerId"];
 	        this.providerName = source["providerName"];
 	        this.imageModel = source["imageModel"];
+	        this.imageModels = source["imageModels"];
 	        this.enhanceProviderId = source["enhanceProviderId"];
 	        this.enhanceModel = source["enhanceModel"];
 	        this.enhanceSupported = source["enhanceSupported"];
@@ -1487,6 +1489,7 @@ export namespace main {
 	    retryCount: number;
 	    createdAt: string;
 	    updatedAt: string;
+	    live: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new TaskSummary(source);
@@ -1502,6 +1505,7 @@ export namespace main {
 	        this.retryCount = source["retryCount"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
+	        this.live = source["live"];
 	    }
 	}
 	
