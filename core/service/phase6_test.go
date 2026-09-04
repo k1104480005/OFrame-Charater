@@ -143,9 +143,15 @@ func TestTaskResumeAllAfterInterruption(t *testing.T) {
 // TestTaskDedupReusesCachedResult verifies task 6.4: submitting an identical
 // task reuses the cached success result without issuing a new external call.
 func TestTaskDedupReusesCachedResult(t *testing.T) {
-	rt := &fakeRT{handler: func(r *http.Request) (*http.Response, error) {
-		return filmstripResp(t, 32, 32, 4), nil
-	}}
+	// 第 1 次调用返回 4 帧条带（plan 1），后续调用返回 8 帧条带（plan 3 的
+	// FrameCount=8 规格）—— 两个不同任务都必须真实执行成功。
+	rt := &fakeRT{}
+	rt.handler = func(r *http.Request) (*http.Response, error) {
+		if rt.calls.Load() <= 1 {
+			return filmstripResp(t, 32, 32, 4), nil
+		}
+		return filmstripResp(t, 32, 32, 8), nil
+	}
 	svc, _ := newTestService(t, &http.Client{Transport: rt})
 	root := newTestPackage(t)
 	configureDoubaoKey(t, svc)
@@ -201,6 +207,56 @@ func TestTaskDedupReusesCachedResult(t *testing.T) {
 	}
 	if rt.calls.Load() != 2 {
 		t.Fatalf("distinct task should call the provider: calls=%d", rt.calls.Load())
+	}
+}
+
+// TestForceRegenerateBypassesDedup verifies that an explicitly forced
+// regeneration (九宫格右键"带反馈重新生成") issues a REAL provider call even when
+// an identical plan was already executed: the user asked for fresh pixels, so
+// replaying the cached success result would look like a no-op regeneration.
+func TestForceRegenerateBypassesDedup(t *testing.T) {
+	rt := &fakeRT{}
+	rt.handler = func(r *http.Request) (*http.Response, error) {
+		return filmstripResp(t, 32, 32, 4), nil
+	}
+	svc, _ := newTestService(t, &http.Client{Transport: rt})
+	root := newTestPackage(t)
+	configureDoubaoKey(t, svc)
+
+	req := GenerationRequest{
+		PackagePath: root, Directions: 1, StylePresetID: "pixel", ActionPresetID: "walk",
+		ForceRegenerate: true,
+	}
+	p1, err := svc.PrepareGeneration(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ConfirmGeneration(context.Background(), p1.ID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Identical forced-regeneration plan: must call the provider again.
+	p2, err := svc.PrepareGeneration(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := svc.ConfirmGeneration(context.Background(), p2.ID, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.Status != PlanExecuted {
+		t.Fatalf("forced regen result: %+v", r2)
+	}
+	if rt.calls.Load() != 2 {
+		t.Fatalf("forced regeneration must bypass dedup: calls=%d, want 2", rt.calls.Load())
+	}
+	// No cache-note row: the task really executed.
+	tv, err := svc.TaskGet(p2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(tv.Error, "reused cached success result") {
+		t.Fatalf("forced regeneration replayed the cache: %+v", tv)
 	}
 }
 

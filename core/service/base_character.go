@@ -140,6 +140,81 @@ func (s *Service) DeleteBaseCharacter(pkgPath, candidateID string) error {
 	return pkg.DeleteBaseCharacterCandidate(candidateID)
 }
 
+// writeFileAtomic replaces path with data via a temp file in the same
+// directory plus a rename, so a concurrent reader (preview listing, generation
+// outbound) never observes a half-written image.
+func writeFileAtomic(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".flip-*")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(name)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	if err := os.Rename(name, path); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	return nil
+}
+
+// FlipBaseCharacter mirrors one base-character candidate image horizontally
+// in place (水平翻转). AI generation frequently mirrors the character's facing
+// direction, so the flip is a first-class correction available on EVERY
+// candidate — pending, adopted or rejected; the adopted basis is the same
+// record and file, so flipping it re-aligns every later generation's base
+// sprite outbound. The flip is its own inverse: applying it twice restores
+// the original pixels, so no extra state or original backup is kept. The file
+// is replaced atomically.
+func (s *Service) FlipBaseCharacter(pkgPath, candidateID string) error {
+	candidateID = strings.TrimSpace(candidateID)
+	if candidateID == "" {
+		return fmt.Errorf("service: base character candidate id is required")
+	}
+	pkg, err := identity.Open(pkgPath)
+	if err != nil {
+		return err
+	}
+	var rel string
+	for _, c := range pkg.BaseCharacterCandidates() {
+		if c.ID == candidateID {
+			rel = c.ImagePath
+			break
+		}
+	}
+	if rel == "" {
+		return fmt.Errorf("service: base character candidate %q not found", candidateID)
+	}
+	abs, err := pkg.BaseCharacterImagePath(rel)
+	if err != nil {
+		return fmt.Errorf("service: %w", err)
+	}
+	raw, err := os.ReadFile(abs)
+	if err != nil {
+		return fmt.Errorf("service: read candidate image: %w", err)
+	}
+	img, err := pipeline.DecodeImageAny(raw)
+	if err != nil {
+		return fmt.Errorf("service: 解码图像失败（支持 PNG/JPEG/GIF）: %w", err)
+	}
+	pngBytes, err := pipeline.EncodeFilmstripPNG(pipeline.FlipHorizontal(img))
+	if err != nil {
+		return fmt.Errorf("service: encode flipped image: %w", err)
+	}
+	if err := writeFileAtomic(abs, pngBytes); err != nil {
+		return fmt.Errorf("service: persist flipped image: %w", err)
+	}
+	s.log.Info("base character candidate flipped", "package", pkg.Root(), "candidate", candidateID)
+	return nil
+}
+
 // importBasePrepare opens the package fresh and enforces the preconditions
 // shared by plain and cropped imports: a saved logical canvas (画布优先) and
 // the permanently locked import source.
@@ -277,6 +352,39 @@ func resizeNearest(src *image.RGBA, width, height int) *image.RGBA {
 	return dst
 }
 
+// prepareBaseImage decodes the provider bytes (PNG/JPEG/GIF), fits the logical
+// canvas, keys away the magenta technical background and quantizes to the
+// style palette. A returned error means the model violated the keying/framing
+// contract (洋红底缺失或角色满幅) — the caller retries within the attempt budget.
+func (s *Service) prepareBaseImage(plan *GenerationPlan, raw []byte) (*image.RGBA, error) {
+	img, err := pipeline.DecodeImageAny(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode base character: %v", err)
+	}
+	if img.Bounds().Dx() != plan.Canvas.UnitWidth || img.Bounds().Dy() != plan.Canvas.UnitHeight {
+		img = resizeNearest(img, plan.Canvas.UnitWidth, plan.Canvas.UnitHeight)
+	}
+	// 洋红技术底抠图（对齐 perfectpixel 的角色生成契约）：背景 → 透明。
+	img = pipeline.KeyChroma(img, pipeline.KeyOptions{})
+	if pipeline.OpaqueRatio(img) >= 0.999 {
+		return nil, fmt.Errorf("model ignored the magenta-background contract — nothing was keyed away and the image is fully opaque (the character must not fill the whole canvas; regenerate)")
+	}
+	if size := pipeline.PaletteSizeForStyle(plan.Prompt.StylePresetID); size > 0 {
+		palette, perr := pipeline.BuildSharedPalette([]*image.RGBA{img}, size)
+		if perr != nil {
+			return nil, fmt.Errorf("build base character palette: %v", perr)
+		}
+		frames, perr := pipeline.QuantizeToPalette([]*image.RGBA{img}, palette)
+		if perr != nil {
+			return nil, fmt.Errorf("quantize base character palette: %v", perr)
+		}
+		if len(frames) == 1 {
+			img = frames[0]
+		}
+	}
+	return img, nil
+}
+
 // runBaseCharacter executes a confirmed base-character plan through the
 // persisted task queue (executePlanTask dispatch): ONE provider call → decode
 // in any supported format → re-encode as true PNG → persist under the package
@@ -297,40 +405,35 @@ func (s *Service) runBaseCharacter(ctx context.Context, plan *GenerationPlan, pr
 		progress(1, 20) // 已提交 provider：5%（provider 调用是最长的一段）
 	}
 
-	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
-	if err != nil {
-		return s.failPlan(plan, res, err.Error())
+	// 解码 → 画布适配 → 洋红键控 → 调色板量化（处理与重试共用）。模型没画
+	// 洋红底（键控后仍满幅不透明）视为违反生成契约 —— 在尝试预算内换图重试。
+	budget := plan.MaxAttemptsPerDirection
+	if budget <= 0 {
+		budget = 1
 	}
-	res.Attempts = attempts
-	res.CallsMade = 1
+	total := 0
+	var img *image.RGBA
+	for {
+		raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs, "")
+		total += attempts
+		if err != nil {
+			return s.failPlan(plan, res, err.Error())
+		}
+		res.Attempts = total
+		res.CallsMade = 1
+		var perr error
+		img, perr = s.prepareBaseImage(plan, raw)
+		if perr == nil {
+			break
+		}
+		if total >= budget {
+			return s.failPlan(plan, res, perr.Error())
+		}
+		s.log.Warn("base character keying contract violated; retrying within the agreed attempt budget",
+			"plan", plan.ID, "attemptsUsed", total, "attemptBudget", budget, "error", perr)
+	}
 	if progress != nil {
-		progress(17, 20) // 已返回并完成解码/量化：85%
-	}
-	if err != nil {
-		return s.failPlan(plan, res, err.Error())
-	}
-	res.Attempts = attempts
-	res.CallsMade = 1
-
-	img, err := pipeline.DecodeImageAny(raw)
-	if err != nil {
-		return s.failPlan(plan, res, fmt.Sprintf("decode base character: %v", err))
-	}
-	if img.Bounds().Dx() != plan.Canvas.UnitWidth || img.Bounds().Dy() != plan.Canvas.UnitHeight {
-		img = resizeNearest(img, plan.Canvas.UnitWidth, plan.Canvas.UnitHeight)
-	}
-	if size := pipeline.PaletteSizeForStyle(plan.Prompt.StylePresetID); size > 0 {
-		palette, perr := pipeline.BuildSharedPalette([]*image.RGBA{img}, size)
-		if perr != nil {
-			return s.failPlan(plan, res, fmt.Sprintf("build base character palette: %v", perr))
-		}
-		frames, perr := pipeline.QuantizeToPalette([]*image.RGBA{img}, palette)
-		if perr != nil {
-			return s.failPlan(plan, res, fmt.Sprintf("quantize base character palette: %v", perr))
-		}
-		if len(frames) == 1 {
-			img = frames[0]
-		}
+		progress(17, 20) // 已返回并完成解码/键控/量化：85%
 	}
 	pngBytes, err := pipeline.EncodeFilmstripPNG(img)
 	if err != nil {
@@ -350,13 +453,13 @@ func (s *Service) runBaseCharacter(ctx context.Context, plan *GenerationPlan, pr
 		return s.failPlan(plan, res, err.Error())
 	}
 	res.Results = append(res.Results, DirectionResult{
-		Direction: "base-character", Attempts: attempts, Bytes: len(pngBytes), Model: plan.Model, CandidateID: candidate.ID,
+		Direction: "base-character", Attempts: total, Bytes: len(pngBytes), Model: plan.Model, CandidateID: candidate.ID,
 	})
 	if progress != nil {
 		progress(1, 1)
 	}
 	s.plans.setStatus(plan.ID, PlanExecuted)
-	s.log.Info("base character generated", "plan", plan.ID, "candidate", candidate.ID, "attempts", attempts)
+	s.log.Info("base character generated", "plan", plan.ID, "candidate", candidate.ID, "attempts", total)
 	s.logGeneration(plan, res, version.ActionGeneration)
 	return res
 }

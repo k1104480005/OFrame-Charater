@@ -61,11 +61,11 @@ type ProcessResult struct {
 }
 
 // ProcessFilmstrip runs the full deterministic image-processing pipeline on a
-// raw filmstrip (tasks 5.1–5.4): normalize → DP-optimal integer slicing →
-// YCbCr chroma key (despill + flood fill) → pixel-grid correction → shared
-// baseline / alpha-weighted centroid alignment → shared palette quantization →
-// quality scoring. The original filmstrip and the immutable prompt snapshot
-// are preserved in the returned candidate.
+// raw filmstrip (tasks 5.1–5.4): YCbCr chroma key（整条条带抠图，对齐
+// perfectpixel 先抠后分）→ DP-optimal integer slicing → pixel-grid correction →
+// shared baseline / alpha-weighted centroid alignment → shared palette
+// quantization → quality scoring. The original filmstrip and the immutable
+// prompt snapshot are preserved in the returned candidate.
 //
 // All-or-nothing: when slicing fails the task fails with the recorded reason
 // and no partial assets are produced, but the failed candidate still retains
@@ -91,17 +91,18 @@ func ProcessFilmstrip(strip *image.RGBA, prompt PromptSnapshot, layout FrameList
 		return ProcessResult{Candidate: c}, err
 	}
 
-	// 1. Deterministic slicing (task 5.3).
-	slices, err := SliceFilmstrip(strip, layout, opts.Slice)
+	// 1. YCbCr chroma key on the WHOLE strip (对齐 perfectpixel：先抠图后分割).
+	// 模型按洋红背景契约出图（整幅不透明），键控后 alpha 投影才出现真实的帧
+	// 间隙；已经透明的输入（测试夹具/透明返回）键控幂等。布局守卫（slice.go）
+	// 在键控后的图上判断"是否存在可分离的姿势带区"。
+	keyedStrip := KeyChroma(strip, opts.Key)
+
+	// 2. Deterministic slicing on the keyed strip (task 5.3 + 布局守卫).
+	slices, err := SliceFilmstrip(keyedStrip, layout, opts.Slice)
 	if err != nil {
 		return fail(err)
 	}
-
-	// 2. YCbCr chroma key with despill + flood fill (task 5.4).
-	keyed := make([]*image.RGBA, 0, len(slices))
-	for _, s := range slices {
-		keyed = append(keyed, KeyChroma(s, opts.Key))
-	}
+	keyed := slices
 
 	// 3. Pixel-grid correction: crop to content, snap to grid, pad to canvas
 	// (task 5.4 裁边与留白按逻辑画布对齐).

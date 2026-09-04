@@ -1,6 +1,7 @@
 package motion
 
 import (
+	"encoding/json"
 	"image"
 	"image/color"
 	"os"
@@ -49,6 +50,41 @@ func TestMotionConsistsOfDirectionSets(t *testing.T) {
 	}
 	if m.FrameCount(DirectionUp) != 0 {
 		t.Error("up sequence shares content with right (must be independent)")
+	}
+}
+
+func TestMotionGenerationSettings(t *testing.T) {
+	m, err := NewMotion("m-settings", "attack", DirectionStrategy{Count: 1, Mirror: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ActionPresetID != "walk" || m.TargetFrameCount != 4 {
+		t.Fatalf("new motion defaults = %q/%d, want walk/4", m.ActionPresetID, m.TargetFrameCount)
+	}
+	if err := m.SetGenerationSettings("attack", "", 6); err != nil {
+		t.Fatal(err)
+	}
+	if m.ActionPresetID != "attack" || m.ActionDescription != "" || m.TargetFrameCount != 6 {
+		t.Fatalf("preset settings = %q/%q/%d", m.ActionPresetID, m.ActionDescription, m.TargetFrameCount)
+	}
+	if err := m.SetGenerationSettings("custom", "swing a sword overhead", 5); err != nil {
+		t.Fatal(err)
+	}
+	if m.ActionPresetID != "custom" || m.ActionDescription != "swing a sword overhead" || m.TargetFrameCount != 5 {
+		t.Fatalf("custom settings = %q/%q/%d", m.ActionPresetID, m.ActionDescription, m.TargetFrameCount)
+	}
+	for _, tc := range []struct {
+		preset string
+		desc   string
+		frames int
+	}{
+		{"unknown", "", 4},
+		{"custom", "", 4},
+		{"walk", "", 11},
+	} {
+		if err := m.SetGenerationSettings(tc.preset, tc.desc, tc.frames); err == nil {
+			t.Errorf("settings %q/%q/%d unexpectedly accepted", tc.preset, tc.desc, tc.frames)
+		}
 	}
 }
 
@@ -432,6 +468,107 @@ func TestMotionSetStoreRoundTrip(t *testing.T) {
 	}
 	if empty.Len() != 0 {
 		t.Fatal("missing file must yield an empty motion set")
+	}
+}
+
+// TestMotionLoopFlag verifies the looping playback flag: new motions default
+// to loop=true, SetLoop persists false, and legacy JSON without a "loop" key
+// (pre-loop motions) loads as looping (true) to keep old preview behaviour.
+func TestMotionLoopFlag(t *testing.T) {
+	m, err := NewMotion("m1", "walk", DirectionStrategy{Count: 8, Mirror: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Loop {
+		t.Fatal("new motion must default to looping playback")
+	}
+	m.SetLoop(false)
+	if m.Loop {
+		t.Fatal("SetLoop(false) not applied")
+	}
+
+	// Round-trip through JSON keeps the explicit false.
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Motion
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.Loop {
+		t.Fatal("explicit loop=false lost in round trip")
+	}
+
+	// Legacy payload without "loop" key must load as looping.
+	legacy := `{"id":"old","name":"legacy","actionPresetId":"walk","strategy":{"count":4,"mirror":true},"directions":[]}`
+	var old Motion
+	if err := json.Unmarshal([]byte(legacy), &old); err != nil {
+		t.Fatal(err)
+	}
+	if !old.Loop {
+		t.Fatal("legacy motion without loop key must default to looping")
+	}
+}
+
+// 生成即定稿：任一方向生成了动画后，动作预设与动作描述（提示词语义）锁定；
+// 但无语义变化的重复写（帧数调整、打开确认弹窗前的表单落盘）必须放行。
+func TestSetGenerationSettingsLocksAfterGeneration(t *testing.T) {
+	m, err := NewMotion("m1", "walk", DirectionStrategy{Count: 4, Mirror: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Empty motion: settings stay editable.
+	if err := m.SetGenerationSettings("walk", "", 4); err != nil {
+		t.Fatalf("settings on an empty motion must be editable: %v", err)
+	}
+	seq := FrameSequence{Direction: DirectionRight, Frames: []Frame{{Index: 0, AssetRef: "candidate:c:frame:0"}}}
+	if err := m.SetDirectionSequence(DirectionRight, seq, OriginGenerated); err != nil {
+		t.Fatal(err)
+	}
+
+	// No semantic change: same preset/desc with a different frame count is a
+	// legitimate pass-through (打开确认弹窗前的表单落盘走的就是这条路径).
+	if err := m.SetGenerationSettings("walk", "", 6); err != nil {
+		t.Fatalf("unchanged semantics must stay writable after generation: %v", err)
+	}
+	if m.TargetFrameCount != 6 {
+		t.Fatalf("frame count not updated: %d", m.TargetFrameCount)
+	}
+
+	// Real semantic changes are rejected once any direction has frames.
+	if err := m.SetGenerationSettings("attack", "挥剑攻击", 6); err == nil {
+		t.Fatal("preset change must be rejected after generation")
+	}
+	if err := m.SetGenerationSettings("custom", "挥剑攻击", 6); err == nil {
+		t.Fatal("preset switch to custom must be rejected after generation")
+	}
+
+	// Custom preset: the description IS the visible prompt semantics.
+	m2, err := NewMotion("m2", "hit", DirectionStrategy{Count: 1, Mirror: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m2.SetGenerationSettings("custom", "挥剑攻击", 4); err != nil {
+		t.Fatal(err)
+	}
+	downSeq := FrameSequence{Direction: DirectionDown, Frames: []Frame{{Index: 0, AssetRef: "candidate:c:frame:0"}}}
+	if err := m2.SetDirectionSequence(DirectionDown, downSeq, OriginGenerated); err != nil {
+		t.Fatal(err)
+	}
+	if err := m2.SetGenerationSettings("custom", "挥剑攻击", 5); err != nil {
+		t.Fatalf("unchanged custom description must stay writable: %v", err)
+	}
+	if err := m2.SetGenerationSettings("custom", "换一个描述", 5); err == nil {
+		t.Fatal("custom description change must be rejected after generation")
+	}
+
+	// Deleting every generated animation unlocks the settings again.
+	if err := m.ClearDirection(DirectionRight); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetGenerationSettings("attack", "挥剑攻击", 6); err != nil {
+		t.Fatalf("settings must unlock after all animations are deleted: %v", err)
 	}
 }
 

@@ -61,6 +61,7 @@ type ProviderConfigView struct {
 	VideoModels []string `json:"videoModels,omitempty"`
 	TextModels  []string `json:"textModels,omitempty"`
 	BaseURL     string   `json:"baseUrl"`
+	APIProtocol string   `json:"apiProtocol,omitempty"`
 	// DefaultSize is the advisory generation size ("WxH") shown on the card
 	// (task 5.2 尺寸); generation itself uses the request's explicit size.
 	DefaultSize  string  `json:"defaultSize,omitempty"`
@@ -134,7 +135,7 @@ func configFromView(cfg ProviderConfigView) provider.ProviderConfig {
 		ProviderID: cfg.ProviderID, Type: cfg.Type, Name: cfg.Name,
 		APIKey: cfg.APIKey, Model: cfg.Model, VideoModel: cfg.VideoModel, TextModel: cfg.TextModel,
 		ImageModels: cfg.ImageModels, VideoModels: cfg.VideoModels, TextModels: cfg.TextModels,
-		BaseURL: cfg.BaseURL, DefaultSize: cfg.DefaultSize, MaxAttempts: cfg.MaxAttempts,
+		BaseURL: cfg.BaseURL, APIProtocol: cfg.APIProtocol, DefaultSize: cfg.DefaultSize, MaxAttempts: cfg.MaxAttempts,
 		TimeoutSec: cfg.TimeoutSec, PricePerCall: cfg.PricePerCall,
 		CLICommand: cfg.CLICommand, CLIPromptArg: cfg.CLIPromptArg,
 		CLIOutputArg: cfg.CLIOutputArg, CLIModelArg: cfg.CLIModelArg,
@@ -149,7 +150,7 @@ func viewFromConfig(cfg provider.ProviderConfig) ProviderConfigView {
 		ProviderID: cfg.ProviderID, Type: cfg.Type, Name: cfg.Name,
 		APIKey: cfg.APIKey, Model: cfg.Model, VideoModel: cfg.VideoModel, TextModel: cfg.TextModel,
 		ImageModels: cfg.ImageModels, VideoModels: cfg.VideoModels, TextModels: cfg.TextModels,
-		BaseURL: cfg.BaseURL, DefaultSize: cfg.DefaultSize, MaxAttempts: cfg.MaxAttempts,
+		BaseURL: cfg.BaseURL, APIProtocol: cfg.APIProtocol, DefaultSize: cfg.DefaultSize, MaxAttempts: cfg.MaxAttempts,
 		TimeoutSec: cfg.TimeoutSec, PricePerCall: cfg.PricePerCall,
 		CLICommand: cfg.CLICommand, CLIPromptArg: cfg.CLIPromptArg,
 		CLIOutputArg: cfg.CLIOutputArg, CLIModelArg: cfg.CLIModelArg,
@@ -186,7 +187,11 @@ type StylePresetView struct {
 type ActionPresetView struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
-	Description string `json:"description"`
+	Category    string `json:"category"`    // 分类（弹窗按分类分组展示）
+	Description string `json:"description"` // 简短中文说明
+	Frames      int    `json:"frames"`      // 建议帧数（0 = 前端兜底）
+	Loop        bool   `json:"loop"`        // 循环型动作（创建时带入动作）
+	PromptText  string `json:"promptText"`  // 进入提示词的英文动作指令（预设说明直接展示）
 }
 
 // PresetCatalogView is the PerfectPixel presets catalog (四个风格预设 + 动作预设).
@@ -214,6 +219,7 @@ type PromptSnapshotView struct {
 	CanvasHeight         int      `json:"canvasHeight"`
 	FrameCount           int      `json:"frameCount"`
 	Directions           int      `json:"directions"`
+	Feedback             string   `json:"feedback,omitempty"`
 	Prompt               string   `json:"prompt"`
 	BuiltAt              string   `json:"builtAt"`
 }
@@ -231,10 +237,13 @@ type GenerationRequestView struct {
 	StyleCustom             string   `json:"styleCustom,omitempty"`   // 自定义风格提示词（非空时优先）
 	Description             string   `json:"description,omitempty"`   // 任务级提示词覆盖；空 → 身份描述
 	ActionPresetID          string   `json:"actionPresetId"`          // "" → walk
+	Feedback                string   `json:"feedback,omitempty"`      // user feedback for regeneration
 	FrameCount              int      `json:"frameCount"`
-	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`     // 0 → 3
-	ReplaceDirections       []string `json:"replaceDirections,omitempty"` // 3.5: 验收时手动替换的方向
-	RegenerateOf            string   `json:"regenerateOf,omitempty"`      // 5.6: 上一候选 id (重新生成)
+	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`      // 0 → 3
+	ReplaceDirections       []string `json:"replaceDirections,omitempty"`  // 3.5: 验收时手动替换的方向
+	RegenerateOf            string   `json:"regenerateOf,omitempty"`       // 5.6: 上一候选 id (重新生成)
+	GenerateDirections      []string `json:"generateDirections,omitempty"` // 点亮式生成：仅生成这些方向
+	ForceRegenerate         bool     `json:"forceRegenerate,omitempty"`    // 显式重新生成：绕过幂等去重缓存
 }
 
 // GenerationPlanView is the confirmation payload shown before any external call.
@@ -581,7 +590,10 @@ func (a *App) PresetCatalog() (*PresetCatalogView, error) {
 		out.Styles = append(out.Styles, StylePresetView{ID: s.ID, Name: s.Name, Description: s.Description, NegativePrompt: pipeline.NegativePromptForStyle(s.ID)})
 	}
 	for _, ac := range cat.Actions {
-		out.Actions = append(out.Actions, ActionPresetView{ID: ac.ID, Name: ac.Name, Description: ac.Description})
+		out.Actions = append(out.Actions, ActionPresetView{
+			ID: ac.ID, Name: ac.Name, Category: ac.Category, Description: ac.Description,
+			Frames: ac.Frames, Loop: ac.Loop, PromptText: ac.PromptText,
+		})
 	}
 	return out, nil
 }
@@ -620,10 +632,13 @@ func (a *App) GenerationPlanPrepare(req GenerationRequestView) (*GenerationPlanV
 		StyleCustom:             req.StyleCustom,
 		Description:             req.Description,
 		ActionPresetID:          req.ActionPresetID,
+		Feedback:                req.Feedback,
 		FrameCount:              req.FrameCount,
 		MaxAttemptsPerDirection: req.MaxAttemptsPerDirection,
 		ReplaceDirections:       req.ReplaceDirections,
 		RegenerateOf:            req.RegenerateOf,
+		GenerateDirections:      req.GenerateDirections,
+		ForceRegenerate:         req.ForceRegenerate,
 	})
 	if err != nil {
 		return nil, err
@@ -665,6 +680,86 @@ func (a *App) GenerationPlanGet(planID string) (*GenerationPlanView, error) {
 		return nil, err
 	}
 	return planToView(plan), nil
+}
+
+// --- batch operations (批量操作) ---
+
+// MotionBatchItemView is the per-motion pending summary of the 批量操作 area.
+type MotionBatchItemView struct {
+	MotionID     string   `json:"motionId"`
+	MotionName   string   `json:"motionName"`
+	BasicDirs    []string `json:"basicDirs"`           // 需 AI 调用生成的空方向
+	MirrorDirs   []string `json:"mirrorDirs"`          // 源方向生成后自动派生的空方向
+	StuckDirs    []string `json:"stuckDirs,omitempty"` // 镜像开启但源方向已有帧（需关镜像才能生成）
+	Calls        int      `json:"calls"`
+	Currency     string   `json:"currency"`
+	CostPerCall  float64  `json:"costPerCall"`
+	ExpectedCost float64  `json:"expectedCost"`
+	ProviderID   string   `json:"providerId,omitempty"` // 该动作解析到的图像 Provider
+	Model        string   `json:"model,omitempty"`      // 解析到的模型（空 = Provider 默认）
+}
+
+// MotionBatchCostView aggregates the estimated cost per currency.
+type MotionBatchCostView struct {
+	Currency string  `json:"currency"`
+	Amount   float64 `json:"amount"`
+}
+
+// MotionBatchSelectionView is one motion's checked directions (动作卡九宫格
+// 点亮集合) feeding the batch summary.
+type MotionBatchSelectionView struct {
+	MotionID   string   `json:"motionId"`
+	Directions []string `json:"directions"`
+}
+
+// MotionBatchSummaryView is the 批量操作 area payload: totals across every
+// motion of the open identity package (offline; no plan, no external call).
+type MotionBatchSummaryView struct {
+	Motions      int                   `json:"motions"`
+	PendingCells int                   `json:"pendingCells"`
+	PendingCalls int                   `json:"pendingCalls"`
+	Costs        []MotionBatchCostView `json:"costs"`
+	Items        []MotionBatchItemView `json:"items"`
+}
+
+// MotionBatchSummary computes the 批量操作 summary of the open package's
+// motions: 每张动作卡勾选方向中未生成格子的总数、预计调用次数与按币种聚合的
+// 预估费用. Purely offline — no generation plan is created and no model is
+// called.
+func (a *App) MotionBatchSummary(selections []MotionBatchSelectionView) (*MotionBatchSummaryView, error) {
+	svc, err := a.service()
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return nil, err
+	}
+	sel := make([]service.MotionBatchSelection, 0, len(selections))
+	for _, s := range selections {
+		sel = append(sel, service.MotionBatchSelection{MotionID: s.MotionID, Directions: s.Directions})
+	}
+	sum, err := svc.MotionBatchSummary(pkg.Root(), sel)
+	if err != nil {
+		return nil, err
+	}
+	out := &MotionBatchSummaryView{
+		Motions: sum.Motions, PendingCells: sum.PendingCells, PendingCalls: sum.PendingCalls,
+		Costs: []MotionBatchCostView{}, Items: []MotionBatchItemView{},
+	}
+	for _, c := range sum.Costs {
+		out.Costs = append(out.Costs, MotionBatchCostView{Currency: c.Currency, Amount: c.Amount})
+	}
+	for _, it := range sum.Items {
+		out.Items = append(out.Items, MotionBatchItemView{
+			MotionID: it.MotionID, MotionName: it.MotionName,
+			BasicDirs: it.BasicDirs, MirrorDirs: it.MirrorDirs, StuckDirs: it.StuckDirs,
+			Calls: it.Calls, Currency: it.Currency,
+			CostPerCall: it.CostPerCall, ExpectedCost: it.ExpectedCost,
+			ProviderID: it.ProviderID, Model: it.Model,
+		})
+	}
+	return out, nil
 }
 
 func planToView(plan *service.GenerationPlan) *GenerationPlanView {

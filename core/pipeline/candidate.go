@@ -57,6 +57,20 @@ func (cs *CandidateSet) Add(c Candidate) {
 	}
 }
 
+// Replace swaps a retained candidate's content in place (matched by ID); it is
+// a no-op when the id is unknown. Used when a candidate's artifacts are
+// rewritten on disk (e.g. horizontal flip) so the in-memory cache never serves
+// stale pixels: scores are untouched by such rewrites, so best-tracking stays
+// valid.
+func (cs *CandidateSet) Replace(c Candidate) {
+	for i := range cs.items {
+		if cs.items[i].ID == c.ID {
+			cs.items[i] = c
+			return
+		}
+	}
+}
+
 // Best returns the best-scoring candidate, or nil when no candidate was
 // added.
 func (cs *CandidateSet) Best() *Candidate {

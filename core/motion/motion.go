@@ -1,6 +1,7 @@
 package motion
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -142,12 +143,18 @@ type DirectionSet struct {
 // one independent frame sequence per direction (task 3.1), organized by the
 // chosen direction strategy (task 3.2/3.3).
 type Motion struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Strategy   DirectionStrategy `json:"strategy"`
-	Directions []DirectionSet    `json:"directions"`
-	CreatedAt  time.Time         `json:"createdAt"`
-	UpdatedAt  time.Time         `json:"updatedAt"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	ActionPresetID    string            `json:"actionPresetId,omitempty"`
+	ActionDescription string            `json:"actionDescription,omitempty"`
+	TargetFrameCount  int               `json:"targetFrameCount,omitempty"`
+	ProviderID        string            `json:"providerId,omitempty"` // 动作级 Provider；空 = 跟随全局默认
+	Model             string            `json:"model,omitempty"`      // 动作级模型；空 = Provider 默认
+	Loop              bool              `json:"loop"`                 // 循环播放（待机/行走等）vs 一次性（死亡/跳跃等）
+	Strategy          DirectionStrategy `json:"strategy"`
+	Directions        []DirectionSet    `json:"directions"`
+	CreatedAt         time.Time         `json:"createdAt"`
+	UpdatedAt         time.Time         `json:"updatedAt"`
 }
 
 // NewMotion creates a motion with the strategy's directions initialized as
@@ -168,7 +175,102 @@ func NewMotion(id, name string, s DirectionStrategy) (*Motion, error) {
 	for _, m := range MirroredDirections(s) {
 		dirs = append(dirs, newDirection(m, OriginMirrored, MirrorSource(m)))
 	}
-	return &Motion{ID: id, Name: name, Strategy: s, Directions: dirs, CreatedAt: now, UpdatedAt: now}, nil
+	return &Motion{
+		ID: id, Name: name,
+		ActionPresetID: "walk", TargetFrameCount: 4,
+		Loop:     true, // 新动作默认循环播放（可切一次性）
+		Strategy: s, Directions: dirs, CreatedAt: now, UpdatedAt: now,
+	}, nil
+}
+
+// UnmarshalJSON makes Loop default to true when the stored motion predates the
+// loop field (older motions.json has no "loop" key and previews were always
+// looping). Explicit false in storage is respected.
+func (m *Motion) UnmarshalJSON(data []byte) error {
+	type plain Motion
+	var p plain
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(data, &probe); err == nil {
+		if _, ok := probe["loop"]; !ok {
+			p.Loop = true // 旧数据：无 loop 键 → 默认循环
+		}
+	}
+	*m = Motion(p)
+	return nil
+}
+
+// SetName renames the motion (动作卡标题；预设切换时前端用它同步预设名).
+func (m *Motion) SetName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("motion: name is required")
+	}
+	m.Name = strings.TrimSpace(name)
+	m.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// SetLoop updates the looping playback flag (循环播放 vs 一次性动作).
+func (m *Motion) SetLoop(loop bool) {
+	m.Loop = loop
+	m.UpdatedAt = time.Now().UTC()
+}
+
+// SetGenerationSettings stores the action semantics used to build the filmstrip prompt.
+// Empty legacy fields are normalized to the safe defaults used by new motions.
+// 生成即定稿：动作卡一旦有任一方向生成了动画，动作预设与动作描述（提示词
+// 语义）即锁定 —— 它们决定了已有动画的动作语义，事后修改会让已生成动画与
+// 提示词脱节。锁只拦真正的语义变化：预设与描述都未变化时照常放行（帧数仍
+// 可调；打开生成确认弹窗前的表单落盘也是无语义变化的重复写，不能被拦）。
+func (m *Motion) SetGenerationSettings(actionPresetID, actionDescription string, frameCount int) error {
+	if strings.TrimSpace(actionPresetID) == "" {
+		actionPresetID = "walk"
+	}
+	actionDescription = strings.TrimSpace(actionDescription)
+	currentPreset := m.ActionPresetID
+	if currentPreset == "" {
+		currentPreset = "walk" // 旧数据缺省按 walk 口径比较
+	}
+	// 描述只在自定义预设下是可见语义（预设提示词模式下描述恒为空），比较时
+	// 同口径：非自定义预设忽略双方的历史描述漂移。
+	semanticChange := actionPresetID != currentPreset ||
+		(actionPresetID == "custom" && actionDescription != m.ActionDescription)
+	if semanticChange {
+		for i := range m.Directions {
+			if len(m.Directions[i].Sequence.Frames) > 0 {
+				return fmt.Errorf("motion: 动作 %q 已有生成动画 —— 动作预设与动作描述已锁定；如需修改请先删除该动作卡的全部已生成动画", m.Name)
+			}
+		}
+	}
+	if actionPresetID != "custom" {
+		if _, err := pipeline.ActionPresetByID(actionPresetID); err != nil {
+			return err
+		}
+	}
+	if frameCount == 0 {
+		frameCount = 4
+	}
+	if frameCount < 1 || frameCount > 10 {
+		return fmt.Errorf("motion: frame count must be between 1 and 10, got %d", frameCount)
+	}
+	if actionPresetID == "custom" && actionDescription == "" {
+		return fmt.Errorf("motion: custom action description is required")
+	}
+	m.ActionPresetID = actionPresetID
+	m.ActionDescription = actionDescription
+	m.TargetFrameCount = frameCount
+	m.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// SetProviderSettings stores the motion-level provider and model choice.
+// Empty values mean "follow the global default".
+func (m *Motion) SetProviderSettings(providerID, model string) {
+	m.ProviderID = strings.TrimSpace(providerID)
+	m.Model = strings.TrimSpace(model)
+	m.UpdatedAt = time.Now().UTC()
 }
 
 func newDirection(dir, origin, source string) DirectionSet {
@@ -271,6 +373,22 @@ func (m *Motion) SetDirectionSequence(dir string, seq FrameSequence, origin stri
 	} else {
 		d.Source = ""
 	}
+	m.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ClearDirection removes a direction's frame sequence (动作卡九宫格右键"删除"
+// 该格动画): the direction slot itself is kept (the 8-direction structure is
+// stable), the cell reverts to "not generated" — origin/source cleared so it
+// can be lit and generated again. Idempotent for an already-empty direction.
+func (m *Motion) ClearDirection(dir string) error {
+	d := m.Direction(dir)
+	if d == nil {
+		return fmt.Errorf("motion: unknown direction %q", dir)
+	}
+	d.Sequence = FrameSequence{}
+	d.Origin = ""
+	d.Source = ""
 	m.UpdatedAt = time.Now().UTC()
 	return nil
 }

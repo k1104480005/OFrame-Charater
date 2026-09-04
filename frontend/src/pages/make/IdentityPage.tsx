@@ -3,7 +3,7 @@
 // over the shared core identity services (tasks 2.3–2.5).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnchorPresetView, AnchorView, BaseCharacterCandidateView, CurrentModelsView, GenerationPlanView, IdentityView, MaterialView, ProviderInfoView, StylePresetView } from "../../api/client";
-import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, deleteBaseCharacter, describeBaseCharacterImage, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, fetchProviders, fetchTask, fetchTasks, importBaseCharacter, importBaseCharacterCropped, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, readImageForPreview, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
+import { addAnchorPreset, adoptBaseCharacter, confirmGeneration, deleteAnchor, deleteBaseCharacter, describeBaseCharacterImage, enhanceDescription, fetchAnchorPresets, fetchBaseCharacterCandidates, fetchCurrentModels, fetchDraft, fetchIdentity, fetchMaterialThumbs, fetchPresetCatalog, fetchProviders, fetchTask, fetchTasks, flipBaseCharacter, importBaseCharacter, importBaseCharacterCropped, importMaterial, lockBaseCharacterSource, pickMaterialFile, prepareGeneration, readImageForPreview, removeMaterial, saveCanvas, saveDescription, saveDraftPatch, setMainReference, setPerfectPixelStandard } from "../../api/client";
 import { useSession } from "../../state/SessionContext";
 import { PixelCanvas } from "../../components/PixelCanvas";
 import { MaterialLightbox } from "../../components/MaterialLightbox";
@@ -486,6 +486,15 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
     });
   };
 
+  // 水平翻转候选/已采用角色图：AI 生图经常把角色朝向画反，翻转是自逆的
+  // 真实像素修正（再点一次翻回），已采用的基准与生成读取的是同一文件。
+  const handleFlipCandidate = (candidate: BaseCharacterCandidateView) =>
+    void run("candidate-flip", async () => {
+      await flipBaseCharacter(candidate.id);
+      await loadCandidates();
+      flash("已水平翻转 —— 朝向相反时再点一次即可翻回");
+    });
+
   const handleLockAI = () => setSourceConfirm("ai");
 
   const confirmSource = () => {
@@ -947,6 +956,9 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                       <div className="col">
                         <span className="faint">已导入：本地角色图{view.canvas ? ` · 画布规格 ${view.canvas.unitWidth} × ${view.canvas.unitHeight}` : ""}</span>
                         <div className="row">
+                          <button className="pixel-btn" disabled={busy !== null} onClick={() => handleFlipCandidate(pendingImportDraft)} aria-label="水平翻转已导入的角色图" title="水平翻转（左右镜像）—— 朝向相反时用它纠正；真实像素翻转，再点一次翻回">
+                            ⇄ 水平翻转
+                          </button>
                           <button className="pixel-btn pixel-btn--warn" disabled={busy !== null} onClick={() => setCandidateToDelete(pendingImportDraft)} aria-label="删除已导入的角色图" title="删除这张已导入的角色图（记录与图片文件一并移除，需确认）">
                             删除角色图
                           </button>
@@ -996,6 +1008,9 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                                 ✕
                               </button>
                             )}
+                            <button className="identity__candidate-flip" disabled={busy !== null} onClick={() => handleFlipCandidate(candidate)} aria-label={`水平翻转候选 ${candidate.id.slice(0, 8)}`} title="水平翻转（左右镜像）—— 大模型常把角色朝向画反，用它纠正；真实像素翻转，再点一次翻回">
+                              ⇄
+                            </button>
                             <img src={`data:image/png;base64,${candidate.png}`} alt="基础角色候选" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${candidate.png}`, title: `候选 ${candidate.id.slice(0, 8)}` })} />
                             <div className={`mono identity__candidate-badge${adopted ? " identity__candidate-badge--adopted" : rejected ? " identity__candidate-badge--rejected" : ""}`}>
                               {adopted ? "已采用" : pending ? "待采用" : rejected ? "已弃用" : candidate.status}
@@ -1033,6 +1048,13 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                       {adoptedCandidate && (
                         <img src={`data:image/png;base64,${adoptedCandidate.png}`} alt="已锁定的身份基准" title="点击放大预览" onClick={() => setPreviewCandidate({ src: `data:image/png;base64,${adoptedCandidate.png}`, title: "已锁定的身份基准" })} />
                       )}
+                      {adoptedCandidate && (
+                        <div className="col">
+                          <button className="pixel-btn" disabled={busy !== null} onClick={() => handleFlipCandidate(adoptedCandidate)} aria-label="水平翻转已锁定的身份基准" title="水平翻转（左右镜像）—— 朝向相反时用它纠正；后续动作生成读取同一文件，翻转即时生效；再点一次翻回">
+                            ⇄ 水平翻转
+                          </button>
+                        </div>
+                      )}
                       <div className="identity__locked-note">✓ 已锁定为身份基准 —— 身份生成阶段已完成，可进入动作生成阶段。</div>
                     </div>
                   ) : pendingImportDraft ? (
@@ -1043,6 +1065,9 @@ export function IdentityPage({ onOpenTasks }: { onOpenTasks?: () => void }) {
                         <div className="row">
                           <button className="pixel-btn pixel-btn--primary" disabled={busy !== null} onClick={() => setCandidateToAdopt(pendingImportDraft)} aria-label="确认锁定身份基准" title="锁定前需要二次确认">
                             确认锁定为身份基准
+                          </button>
+                          <button className="pixel-btn" disabled={busy !== null} onClick={() => handleFlipCandidate(pendingImportDraft)} aria-label="水平翻转待锁定的角色图" title="水平翻转（左右镜像）—— 朝向相反时用它纠正；真实像素翻转，再点一次翻回">
+                            ⇄ 水平翻转
                           </button>
                           <span className="faint">锁定前仍可在步骤 2 重新导入替换这张图</span>
                         </div>

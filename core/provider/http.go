@@ -66,6 +66,27 @@ func apiErrorMessage(raw []byte) (string, bool) {
 	return strings.TrimSpace(env.Error.Message), true
 }
 
+// decodeJSONResponse decodes a provider response and adds a useful diagnostic
+// when an HTTP 200 endpoint returns a web page or another non-JSON payload.
+func decodeJSONResponse(raw []byte, target any, kind, apiKey string) error {
+	if err := json.Unmarshal(raw, target); err != nil {
+		body := strings.TrimSpace(string(raw))
+		if body == "" {
+			return fmt.Errorf("provider: decode %s response: empty response body", kind)
+		}
+		preview := truncate(redactSecret(body, apiKey), 300)
+		if strings.HasPrefix(body, "<") {
+			path := kind
+			if kind == "chat" {
+				path = "chat/completions"
+			}
+			return fmt.Errorf("provider: decode %s response: endpoint returned HTML instead of JSON (%s); check that Base URL points to the provider API root, for example http://127.0.0.1:11434/v1, and that /%s is an OpenAI-compatible endpoint", kind, preview, path)
+		}
+		return fmt.Errorf("provider: decode %s response: invalid JSON (%s): %w", kind, preview, err)
+	}
+	return nil
+}
+
 // redactSecret removes every occurrence of secret from s. Vendor bodies are
 // echoed into user-facing errors in truncated form, so a service reflecting
 // the Authorization header back must never leak the key through them.
@@ -276,8 +297,8 @@ func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKe
 		return "", err
 	}
 	var out chatResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", fmt.Errorf("provider: decode chat response: %w", err)
+	if err := decodeJSONResponse(raw, &out, "chat", apiKey); err != nil {
+		return "", err
 	}
 	if out.Error != nil && out.Error.Message != "" {
 		return "", fmt.Errorf("provider: chat API error: %s", out.Error.Message)
@@ -290,6 +311,83 @@ func chatCompletionText(ctx context.Context, client *http.Client, baseURL, apiKe
 		return "", fmt.Errorf("provider: chat response choice has no content")
 	}
 	return reply, nil
+}
+
+// responsesCompletionText performs an OpenAI Responses API call. Responses
+// returns generated text inside output[].content[].text rather than choices.
+func responsesCompletionText(ctx context.Context, client *http.Client, baseURL, apiKey, model, prompt string) (string, error) {
+	body := map[string]any{
+		"model": model,
+		"input": prompt,
+	}
+	raw, err := postJSON(ctx, client, baseURL+"/responses", apiKey, body)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Output []struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+		Error *apiError `json:"error"`
+	}
+	if err := decodeJSONResponse(raw, &out, "responses", apiKey); err != nil {
+		return "", err
+	}
+	if out.Error != nil && out.Error.Message != "" {
+		return "", fmt.Errorf("provider: responses API error: %s", redactSecret(out.Error.Message, apiKey))
+	}
+	for _, item := range out.Output {
+		for _, content := range item.Content {
+			if strings.TrimSpace(content.Text) != "" {
+				return content.Text, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("provider: responses response has no output text")
+}
+
+// anthropicMessagesText performs an Anthropic Messages API call for custom
+// text providers. Anthropic uses x-api-key and content blocks instead of the
+// OpenAI Bearer/choices envelope.
+func anthropicMessagesText(ctx context.Context, client *http.Client, baseURL, apiKey, model, prompt string) (string, error) {
+	body := map[string]any{
+		"model":      model,
+		"max_tokens": 1024,
+		"messages":   []map[string]any{{"role": "user", "content": prompt}},
+	}
+	raw, status, err := postJSONWithHeaders(ctx, client, baseURL+"/messages", apiKey,
+		map[string]string{"Authorization": "", "x-api-key": apiKey, "anthropic-version": "2023-06-01"}, body)
+	if err != nil {
+		return "", err
+	}
+	if isAuthStatus(status) {
+		return "", MarkNotRetryable(fmt.Errorf("provider: auth failed (HTTP %d): %s", status, non2xxDetail(raw, apiKey)))
+	}
+	if status < 200 || status >= 300 {
+		return "", fmt.Errorf("provider: unexpected status %d: %s", status, non2xxDetail(raw, apiKey))
+	}
+	var out struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		Error *apiError `json:"error"`
+	}
+	if err := decodeJSONResponse(raw, &out, "messages", apiKey); err != nil {
+		return "", err
+	}
+	if out.Error != nil && out.Error.Message != "" {
+		return "", fmt.Errorf("provider: messages API error: %s", redactSecret(out.Error.Message, apiKey))
+	}
+	for _, block := range out.Content {
+		if strings.TrimSpace(block.Text) != "" {
+			return block.Text, nil
+		}
+	}
+	return "", fmt.Errorf("provider: messages response has no text content")
 }
 
 func mimeOr(m string) string {

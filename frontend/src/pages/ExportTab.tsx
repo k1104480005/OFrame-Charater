@@ -259,7 +259,7 @@ export function ExportTab() {
           </button>
         </div>
         <div className="faint">
-          产出 spritesheet.png + manifest.json + 逐帧 PNG + {target}.json 目标元数据；生成后自动校验完整性，失败即报错（任务 11.3）
+          产出 spritesheet.png + manifest.json + 逐帧 PNG + {target}.json 目标元数据；生成后自动校验完整性，失败即报错
         </div>
         {okMsg && <div className="status-ok">{okMsg}</div>}
       </section>

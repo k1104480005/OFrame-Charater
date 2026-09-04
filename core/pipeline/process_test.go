@@ -134,20 +134,20 @@ func TestProcessFilmstripFullPipeline(t *testing.T) {
 	}
 	// Transforms must be the exact integer pixel displacements the alignment
 	// stage applied (task 5.4 整数位移): recompute the deterministic
-	// pre-alignment frames (slice → key → grid, with the same options the
-	// pipeline used) and verify (a) every recorded transform equals the
-	// integer rounding of the fractional alpha-weighted centroid / foot
+	// pre-alignment frames (key the whole strip → slice → grid, with the same
+	// options the pipeline used) and verify (a) every recorded transform equals
+	// the integer rounding of the fractional alpha-weighted centroid / foot
 	// displacement, and (b) applying it to the pre-alignment frame reproduces
 	// exactly the aligned frame. A non-integer or mis-rounded displacement
 	// fails both checks.
 	opts := ProcessOptions{}
-	preSlices, err := SliceFilmstrip(strip, layout, opts.Slice)
+	preSlices, err := SliceFilmstrip(KeyChroma(strip, opts.Key), layout, opts.Slice)
 	if err != nil {
 		t.Fatalf("re-slice for transform verification: %v", err)
 	}
 	pre := make([]*image.RGBA, 0, len(preSlices))
 	for _, s := range preSlices {
-		pre = append(pre, GridCorrect(KeyChroma(s, opts.Key), layout.Canvas.UnitWidth, layout.Canvas.UnitHeight, opts.Grid))
+		pre = append(pre, GridCorrect(s, layout.Canvas.UnitWidth, layout.Canvas.UnitHeight, opts.Grid))
 	}
 	aligned, _, err := AlignSequence(pre, opts.Align)
 	if err != nil {

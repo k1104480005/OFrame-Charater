@@ -13,6 +13,7 @@ import { IdentityPage } from "./make/IdentityPage";
 import { MotionPage } from "./make/MotionPage";
 import { AcceptanceTab } from "./AcceptanceTab";
 import { ExportTab } from "./ExportTab";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import "./MainScreen.css";
 
 type TopTab = "identity" | "motion" | "acceptance" | "export";
@@ -65,10 +66,17 @@ function WorkbenchContent({ pkg, close }: { pkg: ReturnType<typeof useSession>["
         <main className="main__workspace">
           <Tabs<TopTab> tabs={TOP_TABS} active={tab} onChange={setTab} aria-label="主标签" />
           <div className="main__content">
-            {tab === "identity" && <IdentityPage onOpenTasks={() => drawerHandle.current.open()} />}
-            {tab === "motion" && <MotionPage />}
-            {tab === "acceptance" && <AcceptanceTab />}
-            {tab === "export" && <ExportTab />}
+            <ErrorBoundary label="工作区">
+              {tab === "identity" && <IdentityPage onOpenTasks={() => drawerHandle.current.open()} />}
+              {tab === "motion" && (
+                <MotionPage
+                  onOpenAcceptance={() => setTab("acceptance")}
+                  onOpenTasks={() => drawerHandle.current.open()}
+                />
+              )}
+              {tab === "acceptance" && <AcceptanceTab />}
+              {tab === "export" && <ExportTab />}
+            </ErrorBoundary>
           </div>
         </main>
       </div>

@@ -13,6 +13,8 @@ export function BaseCharacterDelete(arg1:string):Promise<void>;
 
 export function BaseCharacterDescribeImage(arg1:string):Promise<string>;
 
+export function BaseCharacterFlip(arg1:string):Promise<void>;
+
 export function BaseCharacterImport(arg1:string):Promise<main.BaseCharacterCandidateView>;
 
 export function BaseCharacterImportCropped(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<main.BaseCharacterCandidateView>;
@@ -34,6 +36,8 @@ export function CurrentModels():Promise<main.CurrentModelsView>;
 export function CurrentPackage():Promise<main.PackageSummary>;
 
 export function DirectionPreview(arg1:string,arg2:string):Promise<main.CandidatePreviewView>;
+
+export function DirectionThumbnail(arg1:string,arg2:string):Promise<string>;
 
 export function DraftClear():Promise<void>;
 
@@ -91,7 +95,17 @@ export function IdentitySetMainReference(arg1:string):Promise<main.MaterialView>
 
 export function IdentitySetPerfectPixelStandard(arg1:boolean):Promise<void>;
 
+export function MotionBatchSummary(arg1:Array<main.MotionBatchSelectionView>):Promise<main.MotionBatchSummaryView>;
+
+export function MotionClearDirection(arg1:string,arg2:string):Promise<main.MotionView>;
+
 export function MotionCreate(arg1:string,arg2:number,arg3:boolean):Promise<main.MotionView>;
+
+export function MotionDelete(arg1:string):Promise<void>;
+
+export function MotionDirectionRawStrip(arg1:string,arg2:string):Promise<string>;
+
+export function MotionFlipDirection(arg1:string,arg2:string):Promise<string>;
 
 export function MotionGet(arg1:string):Promise<main.MotionView>;
 
@@ -99,7 +113,15 @@ export function MotionList():Promise<Array<main.MotionView>>;
 
 export function MotionPlaybackTempo(arg1:string,arg2:string):Promise<Array<number>>;
 
+export function MotionRename(arg1:string,arg2:string):Promise<main.MotionView>;
+
 export function MotionSetFrameDurations(arg1:string,arg2:string,arg3:Array<number>):Promise<main.MotionView>;
+
+export function MotionSetGenerationSettings(arg1:string,arg2:string,arg3:string,arg4:number):Promise<main.MotionView>;
+
+export function MotionSetLoop(arg1:string,arg2:boolean):Promise<main.MotionView>;
+
+export function MotionSetProviderSettings(arg1:string,arg2:string,arg3:string):Promise<main.MotionView>;
 
 export function MotionSetStrategy(arg1:string,arg2:number,arg3:boolean):Promise<main.MotionView>;
 

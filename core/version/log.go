@@ -23,6 +23,7 @@ const (
 	ActionVersionCommit     = "version_commit"     // 外观修订 (9.1)
 	ActionRollback          = "rollback"           // 回退到历史点 (9.4)
 	ActionEdit              = "edit"               // 轻量编辑 (7.x, reserved)
+	ActionMotionFlip        = "motion_flip"        // 动画方向水平翻转 (九宫格右键)
 )
 
 // oplogMu serializes appends to the append-only operation log (single-user

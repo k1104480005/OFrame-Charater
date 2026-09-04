@@ -67,6 +67,8 @@ export function AcceptanceTab() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [regenFeedback, setRegenFeedback] = useState("");
+  const [regenPlan, setRegenPlan] = useState<GenerationPlanView | null>(null);
   const [replacePlan, setReplacePlan] = useState<GenerationPlanView | null>(null);
   const [rollbackSeq, setRollbackSeq] = useState<number | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -131,6 +133,17 @@ export function AcceptanceTab() {
   const motion = useMemo(() => motions.find((m) => m.id === motionId) ?? null, [motions, motionId]);
   const selectedDirection = useMemo(() => motion?.directions.find((d) => d.direction === direction) ?? null, [motion, direction]);
   const previewFrames = preview?.frames ?? [];
+  // 稳定引用：预览内容不变时 PixelCanvas 不重建（避免播放逐帧渲染触发
+  // PixiJS 场景销毁/初始化竞态，见 PixelCanvas 的 initialized 保护）。
+  const previewFrameData = useMemo(
+    () =>
+      previewFrames.map((f) => ({
+        png: f.png,
+        durationMs: f.durationMs,
+        anchors: (f.anchors ?? []).map((a) => ({ name: a.Name, x: a.X, y: a.Y })),
+      })),
+    [previewFrames],
+  );
   const currentFrame = previewFrames[frameIndex];
   const currentFps = currentFrame?.durationMs && currentFrame.durationMs > 0
     ? Math.round(1000 / currentFrame.durationMs)
@@ -174,6 +187,45 @@ export function AcceptanceTab() {
       if (!replacePlan) return;
       await confirmGeneration(replacePlan.id, accept);
       setReplacePlan(null);
+      await refresh();
+      bumpPreview();
+      if (motionId && direction) await loadPreview(motionId, direction);
+    });
+
+  const handleRegeneratePrepare = () =>
+    run("regenerate-prepare", async () => {
+      if (!motionId || !direction || !candidateId) return;
+      if (!regenFeedback.trim()) {
+        setError("请先填写本次重新生成希望改进的内容");
+        return;
+      }
+      setRegenPlan(null);
+      const p = await prepareGeneration({
+        packagePath: "",
+        motionId,
+        providerId: "",
+        model: "",
+        directions: 0,
+        stylePresetId: "",
+        actionPresetId: "",
+        feedback: regenFeedback.trim(),
+        frameCount: 0,
+        maxAttemptsPerDirection: 0,
+        regenerateOf: candidateId,
+      });
+      setRegenPlan(p);
+    });
+
+  const handleRegenerateConfirm = (accept: boolean) =>
+    run("regenerate-confirm", async () => {
+      if (!regenPlan) return;
+      const r = await confirmGeneration(regenPlan.id, accept);
+      setRegenPlan(null);
+      if (accept && r.status !== "executed") {
+        setError(`重新生成失败：${r.error || r.status}`);
+      } else if (accept) {
+        setRegenFeedback("");
+      }
       await refresh();
       bumpPreview();
       if (motionId && direction) await loadPreview(motionId, direction);
@@ -297,12 +349,13 @@ export function AcceptanceTab() {
             unitHeight={preview.canvasHeight || 16}
             scale={zoom}
             frameIndex={frameIndex}
-            frames={previewFrames.map((f) => ({
-              png: f.png,
-              durationMs: f.durationMs,
-              anchors: (f.anchors ?? []).map((a) => ({ name: a.Name, x: a.X, y: a.Y })),
-            }))}
+            frames={previewFrameData}
             playing={previewControls.playing}
+            loop={motion?.loop !== false}
+            onPlaybackEnd={() => {
+              setPreviewControls({ playing: false });
+              setFrameIndex(0);
+            }}
             showMatting={showMatting}
             showGrid={previewControls.showGrid}
             showAnchors={previewControls.showAnchors}
@@ -329,8 +382,48 @@ export function AcceptanceTab() {
         ) : (
           <div className="empty-state">请选择动作和方向后查看 PixelPerfect 预览</div>
         )}
-        <div className="faint">最近邻采样回放 —— 预览渲染与切片结果逐像素一致（任务 5.5）</div>
+        <div className="faint">最近邻采样回放 —— 预览渲染与切片结果逐像素一致</div>
       </section>
+
+      {motion && direction && selectedDirection?.origin !== "mirrored" && (
+        <section>
+          <h4 className="mono">反馈重新生成</h4>
+          <div className="faint">对当前候选提出具体修改意见，确认后会作为提示词的一部分发送。</div>
+          <div className="row">
+            <textarea
+              className="pixel-input"
+              rows={2}
+              value={regenFeedback}
+              onChange={(e) => setRegenFeedback(e.target.value)}
+              placeholder="例如：手臂动作更大一些，保持帽子颜色，不要裁掉脚"
+              aria-label="重新生成反馈"
+              disabled={!candidateId || busy === "regenerate-prepare" || busy === "regenerate-confirm"}
+            />
+            <button
+              className="pixel-btn pixel-btn--primary"
+              disabled={!candidateId || !regenFeedback.trim() || busy === "regenerate-prepare"}
+              onClick={() => void handleRegeneratePrepare()}
+            >
+              {busy === "regenerate-prepare" ? "计算中…" : "生成确认预览"}
+            </button>
+          </div>
+          {regenPlan && (
+            <div className="pixel-panel gen-plan">
+              <ul className="mono gen-plan__list">
+                <li>重新生成方向：{(regenPlan.basicLabels ?? []).join(", ") || direction} · 预计调用量 {regenPlan.expectedCalls} 次</li>
+                <li>provider / model：{regenPlan.providerId} / {regenPlan.model} · 预算上限 {regenPlan.maxTotalAttempts} 次尝试</li>
+                <li>反馈快照：{regenPlan.prompt.feedback || regenFeedback}</li>
+              </ul>
+              <div className="row">
+                <button className="pixel-btn pixel-btn--primary" disabled={busy === "regenerate-confirm"} onClick={() => void handleRegenerateConfirm(true)}>
+                  {busy === "regenerate-confirm" ? "执行中…" : "确认并重新生成"}
+                </button>
+                <button className="pixel-btn" disabled={busy === "regenerate-confirm"} onClick={() => void handleRegenerateConfirm(false)}>取消</button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {editOpen && motionId && direction && <EditPage />}
 
@@ -477,7 +570,7 @@ export function AcceptanceTab() {
         )}
       </section>
 
-      <div className="faint">验收关口：评分达阈值 且 在 PixelPerfect 预览中确认，方可通过（任务 8.3）</div>
+      <div className="faint">验收关口：评分达阈值 且 在 PixelPerfect 预览中确认，方可通过</div>
 
       {/* 回退确认（动森弹窗，替代原生 confirm） */}
       <ConfirmModal

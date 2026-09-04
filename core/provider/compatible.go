@@ -64,7 +64,15 @@ func (c *Compatible) GenerateText(ctx context.Context, req TextRequest) (*TextRe
 	model := ResolveModel(req.Model, c.cfg.EffectiveTextModel())
 	ctx, cancel := applyTimeout(ctx, c.cfg.EffectiveTimeout())
 	defer cancel()
-	text, err := chatCompletionText(ctx, c.client, c.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
+	var text string
+	switch c.cfg.APIProtocol {
+	case APIProtocolResponses:
+		text, err = responsesCompletionText(ctx, c.client, c.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+	case APIProtocolAnthropic:
+		text, err = anthropicMessagesText(ctx, c.client, c.cfg.EffectiveBaseURL(), key, model, req.Prompt)
+	default:
+		text, err = chatCompletionText(ctx, c.client, c.cfg.EffectiveBaseURL(), key, model, req.Prompt, req.ImageDataURL)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -22,6 +22,10 @@ export function BaseCharacterDescribeImage(arg1) {
   return window['go']['main']['App']['BaseCharacterDescribeImage'](arg1);
 }
 
+export function BaseCharacterFlip(arg1) {
+  return window['go']['main']['App']['BaseCharacterFlip'](arg1);
+}
+
 export function BaseCharacterImport(arg1) {
   return window['go']['main']['App']['BaseCharacterImport'](arg1);
 }
@@ -64,6 +68,10 @@ export function CurrentPackage() {
 
 export function DirectionPreview(arg1, arg2) {
   return window['go']['main']['App']['DirectionPreview'](arg1, arg2);
+}
+
+export function DirectionThumbnail(arg1, arg2) {
+  return window['go']['main']['App']['DirectionThumbnail'](arg1, arg2);
 }
 
 export function DraftClear() {
@@ -178,8 +186,28 @@ export function IdentitySetPerfectPixelStandard(arg1) {
   return window['go']['main']['App']['IdentitySetPerfectPixelStandard'](arg1);
 }
 
+export function MotionBatchSummary(arg1) {
+  return window['go']['main']['App']['MotionBatchSummary'](arg1);
+}
+
+export function MotionClearDirection(arg1, arg2) {
+  return window['go']['main']['App']['MotionClearDirection'](arg1, arg2);
+}
+
 export function MotionCreate(arg1, arg2, arg3) {
   return window['go']['main']['App']['MotionCreate'](arg1, arg2, arg3);
+}
+
+export function MotionDelete(arg1) {
+  return window['go']['main']['App']['MotionDelete'](arg1);
+}
+
+export function MotionDirectionRawStrip(arg1, arg2) {
+  return window['go']['main']['App']['MotionDirectionRawStrip'](arg1, arg2);
+}
+
+export function MotionFlipDirection(arg1, arg2) {
+  return window['go']['main']['App']['MotionFlipDirection'](arg1, arg2);
 }
 
 export function MotionGet(arg1) {
@@ -194,8 +222,24 @@ export function MotionPlaybackTempo(arg1, arg2) {
   return window['go']['main']['App']['MotionPlaybackTempo'](arg1, arg2);
 }
 
+export function MotionRename(arg1, arg2) {
+  return window['go']['main']['App']['MotionRename'](arg1, arg2);
+}
+
 export function MotionSetFrameDurations(arg1, arg2, arg3) {
   return window['go']['main']['App']['MotionSetFrameDurations'](arg1, arg2, arg3);
+}
+
+export function MotionSetGenerationSettings(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['MotionSetGenerationSettings'](arg1, arg2, arg3, arg4);
+}
+
+export function MotionSetLoop(arg1, arg2) {
+  return window['go']['main']['App']['MotionSetLoop'](arg1, arg2);
+}
+
+export function MotionSetProviderSettings(arg1, arg2, arg3) {
+  return window['go']['main']['App']['MotionSetProviderSettings'](arg1, arg2, arg3);
 }
 
 export function MotionSetStrategy(arg1, arg2, arg3) {

@@ -34,6 +34,10 @@ export interface PixelCanvasProps {
   frames?: PreviewFrame[];
   /** play back the frames (advance per frame durationMs, default 120ms) */
   playing?: boolean;
+  /** loop playback (default true); false = one-shot, stops on the last frame */
+  loop?: boolean;
+  /** called when a one-shot (loop=false) playback reaches its final frame */
+  onPlaybackEnd?: () => void;
   /** show the alpha-check matting view (magenta technical background) */
   showMatting?: boolean;
   /** show the pixel grid overlay */
@@ -67,6 +71,8 @@ export function PixelCanvas({
   scale = 16,
   frames = [],
   playing = false,
+  loop = true,
+  onPlaybackEnd,
   showMatting = false,
   showGrid = true,
   showAnchors = false,
@@ -77,6 +83,8 @@ export function PixelCanvas({
   const hostRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const playingRef = useRef(playing);
+  const loopRef = useRef(loop);
+  const onPlaybackEndRef = useRef(onPlaybackEnd);
   const showAnchorsRef = useRef(showAnchors);
   const framesRef = useRef(frames);
   const frameIndexRef = useRef(frameIndex);
@@ -87,6 +95,12 @@ export function PixelCanvas({
   useEffect(() => {
     playingRef.current = playing;
   }, [playing]);
+  useEffect(() => {
+    loopRef.current = loop;
+  }, [loop]);
+  useEffect(() => {
+    onPlaybackEndRef.current = onPlaybackEnd;
+  }, [onPlaybackEnd]);
   useEffect(() => {
     showAnchorsRef.current = showAnchors;
     drawMarksRef.current?.();
@@ -115,6 +129,7 @@ export function PixelCanvas({
     const app = new Application();
     appRef.current = app;
     let disposed = false;
+    let initialized = false;
 
     const mode = decideRenderMode(unitWidth, unitHeight, frames.length, scale, { maxStagePixels });
     const effScale = mode.scale;
@@ -131,8 +146,23 @@ export function PixelCanvas({
         backgroundAlpha: 0,
         autoDensity: true,
       });
-      if (disposed || !host.isConnected) {
-        app.destroy(true);
+      // 组件在 init 完成前已被卸载：此时 app 已初始化完整，安全销毁并退出，
+      // 避免在 cleanup 中对未初始化实例调用 destroy（_cancelResize 竞态）。
+      if (disposed) {
+        try {
+          app.destroy(true, { children: true });
+        } catch {
+          /* ignore teardown errors */
+        }
+        return;
+      }
+      initialized = true;
+      if (!host.isConnected) {
+        try {
+          app.destroy(true, { children: true });
+        } catch {
+          /* ignore teardown errors */
+        }
         return;
       }
       host.appendChild(app.canvas);
@@ -246,6 +276,8 @@ export function PixelCanvas({
 
       // playback: advance per-frame with the frame's own duration (rhythm).
       // Only sprite visibility + anchor marks change — nothing is rebuilt.
+      // loop=false (one-shot): playback stops on the last frame and the host
+      // is notified so the UI can reset to the first frame for a replay.
       app.ticker.add((ticker) => {
         const st = dynRef.current;
         if (!playingRef.current || st.sprites.length <= 1) return;
@@ -255,6 +287,11 @@ export function PixelCanvas({
         st.elapsed += ticker.deltaMS;
         if (st.elapsed >= dur) {
           st.elapsed = 0;
+          if (!loopRef.current && st.current >= st.sprites.length - 1) {
+            // 一次性动作播放完成：停在末帧（不再回绕），通知宿主复位。
+            onPlaybackEndRef.current?.();
+            return;
+          }
           st.current = (st.current + 1) % st.sprites.length;
           for (let i = 0; i < st.sprites.length; i++) st.sprites[i].visible = i === st.current;
           drawMarks();
@@ -265,9 +302,14 @@ export function PixelCanvas({
     return () => {
       disposed = true;
       const app = appRef.current;
-      if (app) {
-        app.destroy(true, { children: true });
-        appRef.current = null;
+      appRef.current = null;
+      // 仅在初始化完成后销毁；init 未完成时由 async 分支在完成后兜底销毁。
+      if (app && initialized) {
+        try {
+          app.destroy(true, { children: true });
+        } catch {
+          /* ignore teardown errors */
+        }
       }
       host.innerHTML = "";
       drawMarksRef.current = null;

@@ -115,6 +115,10 @@ type ProviderConfig struct {
 	VideoModels []string `json:"videoModels,omitempty"` // video model catalog (reserved capability)
 	TextModels  []string `json:"textModels,omitempty"`  // text model catalog (preferred over TextModel)
 	BaseURL     string   `json:"baseUrl,omitempty"`
+	// APIProtocol selects the text API used by custom HTTP providers. Empty and
+	// APIProtocolCompletions use /chat/completions; APIProtocolResponses uses
+	// /responses; APIProtocolAnthropic uses /messages.
+	APIProtocol string `json:"apiProtocol,omitempty"`
 	// DefaultSize is the advisory generation size ("WxH", e.g. "1024x1024").
 	// It is card metadata for the settings UI (task 1.1/5.2); adapters keep
 	// using the request's explicit Width/Height.

@@ -45,6 +45,7 @@ interface Draft {
   name: string;
   apiKey: string;
   baseUrl: string;
+  apiProtocol: string;
   defaultSize: string;
   imageModels: string[];
   videoModels: string[];
@@ -98,6 +99,7 @@ const toDraft = (c: ProviderConfigView): Draft => ({
   name: c.name ?? "",
   apiKey: c.apiKey ?? "",
   baseUrl: c.baseUrl ?? "",
+  apiProtocol: c.apiProtocol ?? "",
   defaultSize: c.defaultSize ?? "",
   // 旧单模型字段 → 目录回退（后端 Effective* 同规则，前端展示保持一致）
   imageModels: c.imageModels?.length ? c.imageModels : c.model ? [c.model] : [],
@@ -261,6 +263,7 @@ export function SettingsPanel({ handle }: { handle: SettingsPanelHandle }) {
         videoModels: d.videoModels,
         textModels: d.textModels,
         baseUrl: d.baseUrl,
+       apiProtocol: d.apiProtocol,
         defaultSize: d.defaultSize,
         maxAttempts: parseInt(d.maxAttempts, 10) || 0,
         timeoutSec: parseInt(d.timeoutSec, 10) || 0,
@@ -610,8 +613,7 @@ export function SettingsPanel({ handle }: { handle: SettingsPanelHandle }) {
                             />
                           </label>
 
-                          <label className="field">
-                            <span>默认尺寸 WxH（建议值，供生成参考）</span>
+                          {p.type === "api" && <label className="field"><span>文本 API 协议</span><select className="px-input" value={d?.apiProtocol ?? ""} onChange={(e) => patchDraft(p.id, { apiProtocol: e.target.value })}><option value="">OpenAI Completions（/chat/completions）</option><option value="openai-responses">OpenAI Responses（/responses）</option><option value="anthropic-messages">Anthropic Messages（/messages）</option></select></label>}\n\n                           <label className="field">\n                             <span>默认尺寸 WxH（建议值，供生成参考）</span>
                             <input
                               className="px-input"
                               placeholder="1024x1024"

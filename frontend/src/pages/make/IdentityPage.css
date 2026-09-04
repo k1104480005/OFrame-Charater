@@ -230,6 +230,38 @@
   box-shadow: none;
 }
 
+/* 候选左上角的水平翻转角标：真实像素翻转（自逆），纠正大模型画反的朝向 */
+.identity__candidate-flip {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--pixel-accent, #d86b3f);
+  background: var(--bg-panel);
+  border: var(--border-w) solid var(--pixel-accent, #d86b3f);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  z-index: 1;
+}
+
+.identity__candidate-flip:hover {
+  background: var(--bg-elevated);
+  transform: none;
+  box-shadow: none;
+}
+
+.identity__candidate-flip:disabled {
+  opacity: 0.5;
+}
+
+
 .identity__candidate img {
   width: 100%;
   aspect-ratio: 1 / 1;

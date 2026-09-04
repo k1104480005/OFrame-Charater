@@ -18,6 +18,13 @@ const (
 // own id as the type; the compatible type powers the settings presets.
 const ProviderTypeCompatible = "compatible"
 
+// API protocol variants supported by the custom API adapter.
+const (
+	APIProtocolCompletions = "openai-completions"
+	APIProtocolResponses   = "openai-responses"
+	APIProtocolAnthropic   = "anthropic-messages"
+)
+
 // Protocol adapter types for the FrameBaker presets (design D1: explicit
 // protocol discriminator — every preset maps to exactly one protocol so a
 // vendor's request shape is never silently replaced by another vendor's).
@@ -65,10 +72,19 @@ type Capabilities struct {
 	Text  bool `json:"text"`
 }
 
+// ReferenceImage kinds. reference_image/sprite are the identity package's
+// reference materials; base_sprite is the adopted base character sprite sent
+// as the canonical identity reference (对齐 perfectpixel：身份图外发).
+const (
+	RefKindReferenceImage = "reference_image"
+	RefKindSprite         = "sprite"
+	RefKindBaseSprite     = "base_sprite"
+)
+
 // ReferenceImage is an image attached to a generation request (外发素材).
 type ReferenceImage struct {
-	Kind string `json:"kind"` // reference_image | sprite
-	Role string `json:"role"` // main_reference | auxiliary_reference
+	Kind string `json:"kind"` // reference_image | sprite | base_sprite
+	Role string `json:"role"` // main_reference | auxiliary_reference | base_sprite
 	MIME string `json:"mime"`
 	Data []byte `json:"-"`
 }

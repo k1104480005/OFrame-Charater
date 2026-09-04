@@ -61,6 +61,105 @@ func (s *Service) MotionGet(pkgPath, id string) (*motion.Motion, error) {
 	return ms.Get(id)
 }
 
+// MotionSetGenerationSettings updates the prompt semantics and target frame count
+// of an existing motion without changing its direction sequences.
+func (s *Service) MotionSetGenerationSettings(pkgPath, id, actionPresetID, actionDescription string, frameCount int) (*motion.Motion, error) {
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return nil, err
+	}
+	m, err := ms.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.SetGenerationSettings(actionPresetID, actionDescription, frameCount); err != nil {
+		return nil, err
+	}
+	if err := st.Save(ms); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// MotionSetProviderSettings persists the motion-level provider/model choice
+// (per-action provider configuration; empty values follow the global default).
+func (s *Service) MotionSetProviderSettings(pkgPath, id, providerID, model string) (*motion.Motion, error) {
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return nil, err
+	}
+	m, err := ms.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	m.SetProviderSettings(providerID, model)
+	if err := st.Save(ms); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// MotionSetLoop persists whether the motion plays as a seamless loop or as a
+// one-shot action (待机/行走循环 vs 死亡/跳跃一次性).
+func (s *Service) MotionSetLoop(pkgPath, id string, loop bool) (*motion.Motion, error) {
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return nil, err
+	}
+	m, err := ms.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	m.SetLoop(loop)
+	if err := st.Save(ms); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// MotionRename updates the motion card title. The front end syncs the title to
+// the chosen action preset's display name when the user switches presets.
+func (s *Service) MotionRename(pkgPath, id, name string) (*motion.Motion, error) {
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return nil, err
+	}
+	m, err := ms.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.SetName(name); err != nil {
+		return nil, err
+	}
+	if err := st.Save(ms); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// MotionDelete removes a motion from the identity package. The motion entry
+// is removed from motions.json so the list shrinks and the action disappears
+// from generation/preview/acceptance.
+func (s *Service) MotionDelete(pkgPath, id string) error {
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return err
+	}
+	if err := ms.Delete(id); err != nil {
+		return err
+	}
+	if err := st.Save(ms); err != nil {
+		return err
+	}
+	s.log.Info("motion deleted", "package", pkgPath, "motion", id)
+	return nil
+}
+
 // MotionSetStrategy re-derives a motion's direction set for a new strategy
 // (task 3.2/3.3: 方向策略可调整; 关闭镜像 → 所有方向独立生成).
 func (s *Service) MotionSetStrategy(pkgPath, id string, strategy motion.DirectionStrategy) (*motion.Motion, error) {
@@ -81,6 +180,32 @@ func (s *Service) MotionSetStrategy(pkgPath, id string, strategy motion.Directio
 	}
 	s.log.Info("motion strategy set", "package", pkgPath, "motion", id,
 		"directions", strategy.Count, "mirror", strategy.Mirror)
+	return m, nil
+}
+
+// MotionClearDirection removes one direction's frame sequence (动作卡九宫格
+// 右键"删除"该格动画): the direction slot is kept, the cell reverts to
+// "not generated" and can be lit / generated again. Idempotent.
+func (s *Service) MotionClearDirection(pkgPath, id, dir string) (*motion.Motion, error) {
+	if strings.TrimSpace(dir) == "" {
+		return nil, fmt.Errorf("service: direction is required")
+	}
+	st := motion.NewStore(pkgPath)
+	ms, err := st.Load()
+	if err != nil {
+		return nil, err
+	}
+	m, err := ms.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.ClearDirection(dir); err != nil {
+		return nil, err
+	}
+	if err := st.Save(ms); err != nil {
+		return nil, err
+	}
+	s.log.Info("motion direction cleared", "package", pkgPath, "motion", id, "direction", dir)
 	return m, nil
 }
 

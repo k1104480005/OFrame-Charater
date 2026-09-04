@@ -155,12 +155,12 @@ func geminiRequestParts(providerID, prompt string, refs []ReferenceImage) ([]gem
 	}
 	for i, r := range refs {
 		switch r.Kind {
-		case geminiRefKindReferenceImage, geminiRefKindSprite:
+		case geminiRefKindReferenceImage, geminiRefKindSprite, RefKindBaseSprite:
 			// attachable below
 		default:
 			return nil, MarkNotRetryable(configErrf(
-				"provider %s: unsupported reference image #%d kind %q (only %q/%q images attach as inlineData)",
-				providerID, i, r.Kind, geminiRefKindReferenceImage, geminiRefKindSprite))
+				"provider %s: unsupported reference image #%d kind %q (only %q/%q/%q images attach as inlineData)",
+				providerID, i, r.Kind, geminiRefKindReferenceImage, geminiRefKindSprite, RefKindBaseSprite))
 		}
 		if len(r.Data) == 0 {
 			return nil, MarkNotRetryable(configErrf(

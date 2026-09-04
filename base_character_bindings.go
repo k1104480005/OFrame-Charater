@@ -204,6 +204,30 @@ func (a *App) BaseCharacterAdopt(id string) error {
 	return err
 }
 
+// BaseCharacterFlip mirrors one base-character candidate image horizontally
+// (水平翻转). AI generation often draws the character facing the wrong way,
+// so the flip is a correction available on every candidate — pending, adopted
+// or rejected; the adopted basis is the same record and file, so flipping it
+// re-aligns the base sprite every later generation sends as reference. The
+// flip is its own inverse (flipping twice restores the original). The session
+// is refreshed from disk afterwards so the launch-card thumbnail of the
+// adopted basis and every tab see the corrected image immediately.
+func (a *App) BaseCharacterFlip(candidateID string) error {
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return err
+	}
+	svc, err := a.service()
+	if err != nil {
+		return err
+	}
+	if err := svc.FlipBaseCharacter(pkg.Root(), candidateID); err != nil {
+		return err
+	}
+	a.log.Info("base character candidate flipped", "package", pkg.Root(), "candidate", candidateID)
+	return a.refreshSessionFromDisk(pkg.Root())
+}
+
 // BaseCharacterReject marks a pending base-character candidate as rejected
 // (弃用): it can no longer be adopted. No external call; the identity basis
 // is untouched. The session is refreshed from disk so no stale manifest is

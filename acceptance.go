@@ -6,6 +6,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/oframe/character-workbench/core/pipeline"
 )
 
@@ -253,6 +255,27 @@ func (a *App) DirectionPreview(motionID, direction string) (*CandidatePreviewVie
 		view.Source = dir.Source
 	}
 	return view, nil
+}
+
+// DirectionThumbnail returns the first frame of a motion direction as a
+// base64 PNG (方向格缩略图：取动画第 1 帧展示在九宫格对应位置).
+func (a *App) DirectionThumbnail(motionID, direction string) (string, error) {
+	svc, err := a.service()
+	if err != nil {
+		return "", err
+	}
+	pkg, err := a.requirePackage()
+	if err != nil {
+		return "", err
+	}
+	frames, err := svc.DirectionPreviewFrames(pkg.Root(), motionID, direction)
+	if err != nil {
+		return "", err
+	}
+	if len(frames) == 0 {
+		return "", fmt.Errorf("direction %q has no frames", direction)
+	}
+	return frames[0].PNG, nil
 }
 
 // motionView loads one motion view (helper over the motion binding).

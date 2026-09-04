@@ -401,6 +401,48 @@ func (s *Service) DirectionPreviewFrames(pkgPath, motionID, direction string) ([
 	return out, nil
 }
 
+// DirectionRawStrip returns a direction's raw filmstrip (原图): the model-
+// returned, pre-processing strip retained by the candidate, as base64 PNG.
+// Mirrored directions resolve their source direction's candidate (镜像帧本地
+// 翻转派生、没有自己的候选).
+func (s *Service) DirectionRawStrip(pkgPath, motionID, direction string) (string, error) {
+	ms, err := motion.NewStore(pkgPath).Load()
+	if err != nil {
+		return "", err
+	}
+	m, err := ms.Get(motionID)
+	if err != nil {
+		return "", err
+	}
+	dir := m.Direction(direction)
+	if dir == nil {
+		return "", fmt.Errorf("service: motion %s has no direction %s", motionID, direction)
+	}
+	refDir := dir
+	if dir.Origin == motion.OriginMirrored {
+		src := motion.MirrorSource(direction)
+		refDir = m.Direction(src)
+		if refDir == nil {
+			return "", fmt.Errorf("service: motion %s has no mirror source direction %s", motionID, src)
+		}
+	}
+	if len(refDir.Sequence.Frames) == 0 || refDir.Sequence.Frames[0].AssetRef == "" {
+		return "", fmt.Errorf("service: motion %s direction %s has no generated candidate yet", motionID, direction)
+	}
+	candID, _, ok := parseCandidateRef(refDir.Sequence.Frames[0].AssetRef)
+	if !ok {
+		return "", fmt.Errorf("service: cannot resolve asset ref %q", refDir.Sequence.Frames[0].AssetRef)
+	}
+	cand, err := s.findCandidate(pkgPath, candID)
+	if err != nil {
+		return "", err
+	}
+	if len(cand.FilmstripPNG) == 0 {
+		return "", fmt.Errorf("service: candidate %s retains no filmstrip artifact", candID)
+	}
+	return encodeBase64(cand.FilmstripPNG), nil
+}
+
 // resolveSourceFrame finds the source direction's rendered frame i.
 func (s *Service) resolveSourceFrame(pkgPath, motionID, source string, i int) (*image.RGBA, error) {
 	ms, err := motion.NewStore(pkgPath).Load()

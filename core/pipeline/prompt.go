@@ -8,9 +8,11 @@ import (
 
 // ReferenceImageRef is the reference-image input recorded in a prompt snapshot
 // (阶段 3: 1 主参考图 + 最多 2 辅助参考图 semantics carried into generation).
+// base_sprite is the adopted base character sprite (对齐 perfectpixel：身份图
+// 作为头号外发参考图，动画逐姿势复刻其外观与配色).
 type ReferenceImageRef struct {
 	MaterialID string `json:"materialId"`
-	Role       string `json:"role"` // main_reference | auxiliary_reference
+	Role       string `json:"role"` // main_reference | auxiliary_reference | base_sprite
 	Name       string `json:"name"`
 }
 
@@ -28,6 +30,7 @@ type PromptInput struct {
 	CanvasHeight int
 	FrameCount   int
 	Directions   int
+	Feedback     string
 }
 
 // PromptSnapshot is the immutable record of a built generation prompt (提示词
@@ -45,6 +48,7 @@ type PromptSnapshot struct {
 	CanvasHeight         int                 `json:"canvasHeight"`
 	FrameCount           int                 `json:"frameCount"`
 	Directions           int                 `json:"directions"`
+	Feedback             string              `json:"feedback,omitempty"`
 	Prompt               string              `json:"prompt"`
 }
 
@@ -102,7 +106,11 @@ func BuildCharacterPrompt(description string, style StylePreset, width, height i
 	}
 	b.WriteString(style.PromptSuffix)
 	b.WriteString(injectPixelContracts(style.ID))
-	fmt.Fprintf(&b, ". Render one centered character on a transparent %dx%d pixel canvas, no text, no borders, no watermark.", width, height)
+	// 角色生成契约 —— 对齐 perfectpixel 的 BuildCharacterPrompt：不要求透明
+	// 背景（图像模型产不出 alpha，豆包等会画成白底），而是要求整幅纯洋红
+	// #FF00FF 技术底，由管线 chroma key 抠掉；角色本身严禁洋红/粉/紫。
+	fmt.Fprintf(&b, ". Render one centered character on a %dx%d pixel canvas, head to feet, vertically centered, occupying about three quarters of the canvas height with generous breathing room on every side. ", width, height)
+	b.WriteString("BACKGROUND COLOR MANDATE (read this before drawing anything): fill the ENTIRE canvas background, edge to edge, with solid pure magenta #FF00FF (R=255, G=0, B=255) — one single flat color touching all four image borders. Do not use white, gray, black, or any other background color. No gradient, texture, scenery, floor, shadow, contact patch, panel, frame, or border of any kind. The character must avoid magenta, pink and purple entirely — clothing, props, highlights and effects included. No text, no borders, no watermark.")
 	return PromptSnapshot{
 		BuiltAt: time.Now().UTC(), StylePresetID: style.ID, Description: strings.TrimSpace(description),
 		ReferenceMaterialIDs: refIDs, References: append([]ReferenceImageRef(nil), refs...),
@@ -130,6 +138,7 @@ func BuildPrompt(in PromptInput) (PromptSnapshot, error) {
 	}
 	main := 0
 	aux := 0
+	base := 0
 	refIDs := make([]string, 0, len(in.References))
 	for _, r := range in.References {
 		switch r.Role {
@@ -137,13 +146,15 @@ func BuildPrompt(in PromptInput) (PromptSnapshot, error) {
 			main++
 		case "auxiliary_reference":
 			aux++
+		case "base_sprite":
+			base++
 		default:
 			return PromptSnapshot{}, fmt.Errorf("pipeline: invalid reference role %q", r.Role)
 		}
 		refIDs = append(refIDs, r.MaterialID)
 	}
-	if main > 1 || aux > 2 {
-		return PromptSnapshot{}, fmt.Errorf("pipeline: reference role bounds violated (%d main, %d auxiliary)", main, aux)
+	if main > 1 || aux > 2 || base > 1 {
+		return PromptSnapshot{}, fmt.Errorf("pipeline: reference role bounds violated (%d main, %d auxiliary, %d base sprite)", main, aux, base)
 	}
 
 	var b strings.Builder
@@ -153,22 +164,63 @@ func BuildPrompt(in PromptInput) (PromptSnapshot, error) {
 		b.WriteString(d)
 		b.WriteString(". ")
 	}
+	// Subject lock —— 逐字对齐 perfectpixel BuildStripPrompt 的身份锁段落：
+	// 已采纳的基础角色精灵图作为第一张参考图外发时，身份一致性优先级最高，
+	// 调色板按参考图逐区域取样，全行固定机位与朝向。
+	for _, r := range in.References {
+		if r.Role == "base_sprite" {
+			b.WriteString("Subject lock (top priority): the attached base sprite is the canonical character. Match it exactly across every pose: face, hairstyle, build, outfit, accessories, weapon or signature prop. ")
+			b.WriteString("Palette is binding: re-sample each region's hue, saturation and value from the reference — skin, hair, every garment, every piece of gear. Do not re-tint, re-light, brighten, darken, or substitute a similar shade. ")
+			b.WriteString("Hold one fixed camera and facing: the figure never rotates, mirrors, ages, or restyles between poses — only the body moves. ")
+			break
+		}
+	}
 	b.WriteString("Animation: ")
 	b.WriteString(in.ActionPreset.PromptText)
 	b.WriteString(". ")
+	// 编排细节 —— 对齐 perfectpixel 的 "Choreography: {MotionHint}"：逐帧
+	// 动作分解（身体各部位怎么动、脚步是否固定、起势-爆发-收势的节奏）。
+	if c := strings.TrimSpace(in.ActionPreset.Choreography); c != "" {
+		b.WriteString("Choreography: ")
+		b.WriteString(c)
+		b.WriteString(". ")
+	}
+	if in.ActionPreset.Loop {
+		// 循环型动作：强调首尾无缝衔接，帧序列可无限循环。
+		b.WriteString("The motion must loop seamlessly (the last frame flows back into the first frame). ")
+	} else {
+		// 一次性动作：强调清晰起止，不做成无限循环。
+		b.WriteString("The motion plays once as a one-shot action with a clear start and a clear end pose. ")
+	}
 	b.WriteString(in.StylePreset.PromptSuffix)
 	b.WriteString(injectPixelContracts(in.StylePreset.ID))
-	b.WriteString(". Render the animation as one single horizontal filmstrip containing ")
-	fmt.Fprintf(&b, "%d frames", in.FrameCount)
-	fmt.Fprintf(&b, " of %dx%d pixels each, frames in left-to-right order, ", in.CanvasWidth, in.CanvasHeight)
-	b.WriteString("character centered in every frame, transparent background, no borders, no text, no watermarks.")
+	if feedback := strings.TrimSpace(in.Feedback); feedback != "" {
+		b.WriteString(" User feedback to address: ")
+		b.WriteString(feedback)
+		b.WriteString(". ")
+	}
+	// 条带布局与抠图契约 —— 对齐 perfectpixel 的关键做法：不要求透明背景
+	// （图像模型产不出 alpha，要求透明只会得到满幅不透明图），而是要求整幅
+	// 纯洋红 #FF00FF 技术底，由管线 chroma key 抠掉；姿势之间留宽幅洋红间隙
+	// 供投影分割，姿势本身严禁接触洋红以外的构图元素。
+	b.WriteString("BACKGROUND COLOR MANDATE: fill every pixel that is not part of a character pose with solid pure magenta #FF00FF (R=255, G=0, B=255), edge to edge — one single flat color touching all four image borders. No gradient, texture, scenery, floor, shadow, contact patch, panel, frame, or border of any kind. The character must avoid magenta, pink and purple entirely — clothing, props, highlights and effects included. ")
+	fmt.Fprintf(&b, "Render the animation as one single horizontal row of exactly %d poses of the same character, ordered left to right, evenly spaced — %d poses, no more and no fewer; count them before finishing. ", in.FrameCount, in.FrameCount)
+	// 对齐 perfectpixel 的行布局句：同一比例 + 约占格高 70-85% + 等拍连续动作。
+	b.WriteString("Every pose is one whole connected body at one shared scale, each filling about 70-85% of the cell height, standing on one common ground line, centered in its share of the row — no pose may be noticeably smaller, larger, or set further back than the others. ")
+	fmt.Fprintf(&b, "Treat the %d poses as evenly timed beats of one continuous motion — pose k is phase k of %d, and neighbours read as smooth in-betweens, never unrelated stances. ", in.FrameCount, in.FrameCount)
+	b.WriteString("Leave a generous band of the flat magenta background between every pair of poses — poses never touch, overlap, or bridge into the neighbour, and no pose is clipped by the canvas edge. ")
+	fmt.Fprintf(&b, "Each pose cell represents %dx%d pixels of the sprite sheet. ", in.CanvasWidth, in.CanvasHeight)
+	b.WriteString("No film-strip sprocket holes or perforations, no panel dividers, no outline boxes, no vignette, no motion streaks, speed lines, blur or after-images, no free-floating sparkles or symbols, no text, no watermarks.")
 	if len(in.References) > 0 {
-		b.WriteString(" Reference images (follow the main reference for the character appearance): ")
+		b.WriteString(" Reference images (the canonical base sprite defines the character appearance; follow the main reference for details): ")
 		parts := make([]string, 0, len(in.References))
 		for _, r := range in.References {
 			label := "auxiliary"
-			if r.Role == "main_reference" {
+			switch r.Role {
+			case "main_reference":
 				label = "main"
+			case "base_sprite":
+				label = "canonical base sprite"
 			}
 			name := strings.TrimSpace(r.Name)
 			if name == "" {

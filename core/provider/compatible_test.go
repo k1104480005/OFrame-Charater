@@ -474,3 +474,71 @@ func TestCompatibleMissingFieldsReadable(t *testing.T) {
 		})
 	}
 }
+
+// TestCompatibleOpenAIResponsesProtocol routes text enhancement through the
+// Responses API envelope when explicitly configured.
+func TestCompatibleOpenAIResponsesProtocol(t *testing.T) {
+	var gotPath string
+	client := fakeClient(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		return jsonResp(http.StatusOK, map[string]any{
+			"output": []map[string]any{{"content": []map[string]any{{"type": "output_text", "text": "enhanced"}}}},
+		}), nil
+	})
+	cfg := ProviderConfig{ProviderID: "local", Type: ProviderTypeAPI, APIProtocol: APIProtocolResponses,
+		APIKey: "sk-x", TextModel: "gpt-5", BaseURL: "http://127.0.0.1:9000/v1"}
+	res, err := NewCompatible(cfg, client).GenerateText(context.Background(), TextRequest{Prompt: "p"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/v1/responses" || res.Text != "enhanced" {
+		t.Fatalf("path/text = %q/%q", gotPath, res.Text)
+	}
+}
+
+// misconfiguration where a web UI route returns HTML with HTTP 200.
+func TestCompatibleHTMLChatResponseIsActionable(t *testing.T) {
+	const secret = "sk-local-secret"
+	client := fakeClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/html"}},
+			Body:       io.NopCloser(strings.NewReader("<html>" + secret + "</html>")),
+		}, nil
+	})
+	cfg := ProviderConfig{ProviderID: "local", Type: ProviderTypeCompatible, Name: "Local",
+		APIKey: secret, TextModel: "local-model", BaseURL: "http://127.0.0.1:11434/v1"}
+
+	_, err := NewCompatible(cfg, client).GenerateText(context.Background(), TextRequest{Prompt: "p"})
+	if err == nil {
+		t.Fatal("expected HTML response error")
+	}
+	msg := err.Error()
+	for _, want := range []string{"returned HTML instead of JSON", "/chat/completions", "Base URL"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("error %q does not contain %q", msg, want)
+		}
+	}
+	if strings.Contains(msg, secret) {
+		t.Fatalf("error leaked API key: %q", msg)
+	}
+}
+
+// TestCompatibleMalformedChatResponseIncludesPreview makes non-HTML malformed
+// responses diagnosable while retaining the underlying decoder error.
+func TestCompatibleMalformedChatResponseIncludesPreview(t *testing.T) {
+	client := fakeClient(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader("not-json")),
+		}, nil
+	})
+	cfg := ProviderConfig{ProviderID: "local", Type: ProviderTypeCompatible, Name: "Local",
+		APIKey: "sk-x", TextModel: "local-model", BaseURL: "http://127.0.0.1:11434/v1"}
+
+	_, err := NewCompatible(cfg, client).GenerateText(context.Background(), TextRequest{Prompt: "p"})
+	if err == nil || !strings.Contains(err.Error(), "invalid JSON (not-json)") {
+		t.Fatalf("expected response preview, got %v", err)
+	}
+}

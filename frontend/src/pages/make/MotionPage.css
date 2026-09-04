@@ -1,0 +1,1401 @@
+/* 动作页：按工作顺序的单列步骤流（① 选择或创建 → ② 参数与策略 → ③ 生成确认 → ④ 预览 → ⑤ 方向集） */
+
+.motion-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* --- 步骤徽章 --- */
+.motion-step {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: var(--border-w) solid var(--primary-active);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 0 0 var(--shadow-color-btn);
+}
+
+/* --- 卡片分组 --- */
+.motion-card {
+  background: var(--bg-elevated);
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  min-width: 0;
+}
+
+.motion-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: var(--border-w) dashed var(--border-faint);
+}
+
+.motion-card__head h4 {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+
+.motion-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* 卡片内字段行：标签左对齐、控件右撑满 */
+.motion-card .field-row {
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  margin-bottom: 0;
+  gap: var(--space-2);
+}
+
+.motion-card .field-row .pixel-input,
+.motion-card .field-row select,
+.motion-card .field-row textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.motion-card .field-row textarea {
+  min-height: 72px;
+}
+
+.motion-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* --- 分隔线（步骤内分组） --- */
+.motion-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+  color: var(--ink-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.motion-divider::before,
+.motion-divider::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 0;
+  border-top: var(--border-w) dashed var(--border-faint);
+}
+
+/* --- 方向模式（快捷点亮按钮行）：无标题，4 个选项等宽一行 --- */
+.motion-dir-modes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.motion-dir-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.motion-dir-toolbar .motion-dir-modes {
+  width: auto;
+  min-width: 0;
+}
+
+.motion-dir-modes .pixel-btn {
+  padding: 3px 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motion-switch--compact {
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.motion-switch--compact .pixel-switch {
+  transform: scale(0.9);
+  transform-origin: center;
+}
+
+
+/* --- 开关行（label + switch + 文字 严格垂直居中） --- */
+.motion-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.motion-switch input[type="checkbox"].pixel-switch {
+  flex: none;
+  vertical-align: middle;
+  margin: 0;
+}
+
+.motion-switch .faint {
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+/* --- 策略编辑行（select + 开关 + 按钮 不换行） --- */
+.motion-strategy-row {
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.motion-strategy-row select {
+  flex: 1 1 110px;
+  min-width: 0;
+}
+
+/* --- 即时预览卡 --- */
+.motion-preview__directions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.motion-preview__directions .pixel-btn {
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.motion-preview__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  padding: var(--space-2);
+  background: var(--bg-inset);
+  border: var(--border-w) dashed var(--border-faint);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.motion-preview__stage .pixel-canvas {
+  max-width: 100%;
+}
+
+.motion-preview__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.motion-preview__controls .preview-scrubber {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* --- 批量操作区（待生成汇总 + 一键批量生成） --- */
+.motion-batch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.motion-batch__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.motion-batch__totals b {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.motion-batch__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.motion-batch__item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 3px 0;
+  border-top: 1px dashed var(--border-faint);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.motion-batch__item:first-child {
+  border-top: none;
+}
+
+.motion-batch__item-name {
+  font-weight: 700;
+  flex: none;
+  max-width: 40%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motion-batch__item .faint {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motion-batch__item-cost {
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+/* --- 生成进行中：锁定横幅 --- */
+.motion-lock-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--primary-bg);
+  border: var(--border-w) solid var(--primary-active);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* --- 九宫格右键菜单（预览原图 / 删除该格动画）—— 动森风格：奶油面板、
+     厚实圆角描边、实体投影、悬停薄荷青 --- */
+.motion-ctx-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.motion-ctx-menu {
+  position: fixed;
+  z-index: 71;
+  min-width: 168px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 6px 0 0 var(--shadow-color-btn), var(--shadow-modal);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: animal-pop 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.motion-ctx-menu__item {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: var(--bg-panel);
+  border: 2px solid var(--border-faint);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  transition: var(--transition);
+}
+
+.motion-ctx-menu__item:hover {
+  background: var(--primary-bg);
+  border-color: var(--primary);
+  color: var(--primary-active);
+  transform: translateY(-1px);
+}
+
+.motion-ctx-menu__item:active {
+  transform: translateY(1px);
+}
+
+.motion-ctx-menu__item--danger:hover {
+  background: #fdecec;
+  border-color: var(--status-warn);
+  color: var(--status-warn);
+}
+
+/* 带反馈重新生成弹窗：反馈输入框与动作卡预设提示词输入框同款
+   （.motion-textarea 规则见下方 .motion-item__config 选择器组），此处只负责
+   在确认弹窗内占满整行。 */
+.motion-regen__feedback {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 2px;
+}
+
+/* --- 像素风转圈（8 步阶跃旋转） --- */
+@keyframes motion-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.motion-spin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--primary-active);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: motion-spin 0.9s steps(8) infinite;
+}
+
+/* --- 任务进度 --- */
+.motion-task-status {
+  margin-top: var(--space-2);
+}
+
+.motion-task-status .row {
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.motion-task-progress {
+  height: 10px;
+  margin-top: var(--space-1);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.motion-task-progress__fill {
+  height: 100%;
+  background: var(--status-ok);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+/* --- 方向集列表 --- */
+.motion-direction-row {
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.motion-direction-row__name {
+  font-weight: 700;
+  min-width: 84px;
+}
+
+.motion-direction-row .grow {
+  text-align: right;
+}
+
+.motion-tempo {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-w) dashed var(--border-faint);
+}
+
+/* --- 头部操作按钮 --- */
+.motion-card__head-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* 动作卡列表：单列竖排，便于逐张展开和配置 */
+.motion-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  align-items: start;
+}
+
+.motion-item {
+  position: relative;
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.motion-item--active {
+  border-color: var(--primary-active);
+  background: var(--primary-bg);
+  box-shadow: 0 0 0 2px var(--primary-active);
+}
+
+/* --- 生成进行中：全部动作卡锁定（防并发编辑/重复生成），生成中的卡高亮 --- */
+.motion-item--locked .motion-item__head {
+  cursor: progress;
+}
+
+.motion-item--locked .motion-item__delete {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.motion-item--generating {
+  border-color: var(--primary-active);
+  box-shadow: 0 0 0 2px var(--primary-active);
+}
+
+/* 生成中徽标（标题旁的小转圈 + 文字） */
+.motion-item__genbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--primary-active);
+}
+
+.motion-item__genbadge .motion-spin {
+  width: 10px;
+  height: 10px;
+}
+
+/* 生成进度细条（头部下方；排队中为往复滑动条） */
+.motion-item__genbar {
+  height: 4px;
+  margin-top: 3px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.motion-item__genbar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--primary-active);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+@keyframes motion-genbar-slide {
+  0% {
+    margin-left: -30%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+
+.motion-item__genbar-fill--indeterminate {
+  width: 30%;
+  animation: motion-genbar-slide 1.1s ease-in-out infinite;
+}
+
+/* 头部：整行可点击折叠/展开 */
+.motion-item__head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  padding-right: 30px; /* 给右上角圆形删除按钮让位 */
+  cursor: pointer;
+  min-width: 0;
+}
+
+.motion-item__head:hover {
+  background: var(--bg-elevated);
+}
+
+.motion-item__topline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.motion-item__caret {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  font-size: 9px;
+  color: var(--ink-dim);
+  transition: transform 0.2s ease;
+}
+
+.motion-item__caret--open {
+  transform: rotate(90deg);
+  color: var(--primary-active);
+}
+
+.motion-item__name {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.motion-item__meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 卡头右侧：状态计数 + 查看（查看按钮不触发卡头的展开/收起） */
+.motion-item__headright {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-width: 0;
+}
+
+.motion-item__view {
+  padding: 1px 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.motion-item__summary {
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motion-item__status {
+  font-size: 10px;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* 折叠态摘要行：左侧迷你圆点九宫格 + 右侧模型选择 */
+.motion-item__snapshot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: var(--border-w) dashed var(--border-faint);
+  min-width: 0;
+}
+
+/* 迷你圆点九宫格：每个方向一个小圆点，颜色表示状态 */
+.motion-item__dots {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 7px);
+  grid-template-rows: repeat(3, 7px);
+  gap: 3px;
+  width: auto;
+  padding: 1px;
+}
+
+.motion-item__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-faint);
+  opacity: 0.55;
+}
+
+/* 已生成：绿色实心 */
+.motion-item__dot--done {
+  background: var(--status-ok);
+  border: 1px solid var(--status-ok-dim);
+  box-sizing: content-box;
+  opacity: 1;
+  width: 5px;
+  height: 5px;
+}
+
+/* 自动镜像派生槽（等待源方向生成后派生）：青色 */
+.motion-item__dot--mirror {
+  background: var(--primary-active);
+  opacity: 0.8;
+}
+
+/* 缺席方向槽（动作不含此方向）：更淡 */
+.motion-item__dot--absent {
+  opacity: 0.16;
+}
+
+/* 中心点：动作已全部生成时为绿，否则灰 */
+.motion-item__dot--center {
+  opacity: 1;
+}
+
+.motion-item__dot--center.motion-item__dot--ok {
+  background: var(--status-ok);
+}
+
+/* 正在生成的格子：脉动青点 */
+@keyframes motion-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    background: var(--primary-active);
+  }
+  50% {
+    opacity: 0.35;
+    background: var(--primary);
+  }
+}
+
+.motion-item__dot--genning {
+  background: var(--primary-active);
+  opacity: 1;
+  animation: motion-dot-pulse 0.9s ease-in-out infinite;
+}
+
+/* 折叠态模型摘要 */
+.motion-item__model {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1.25;
+}
+
+.motion-item__model-label {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.motion-item__model-value {
+  font-size: 10px;
+  color: var(--ink-dim);
+  font-family: var(--font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.motion-item__config-side > .motion-card__actions {
+  display: none;
+}
+
+.motion-item__snapshot {
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 6px;
+  padding: 7px 0 2px;
+}
+
+.motion-item__snapshot::before {
+  content: "方向完成度";
+  align-self: center;
+  color: var(--ink-faint);
+  font-size: 10px;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.05em;
+}
+
+.motion-item__snapshot-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: none;
+  min-width: 54px;
+}
+
+.motion-item__snapshot-count {
+  color: var(--ink-dim);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.motion-item__snapshot-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding-left: 10px;
+  border-left: 1px dashed var(--border-faint);
+}
+
+.motion-item__snapshot-primary,
+.motion-item__snapshot-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.motion-item__snapshot-primary {
+  font-size: 12px;
+}
+
+.motion-item__snapshot-primary .faint,
+.motion-item__snapshot-secondary .faint {
+  font-size: 10px;
+}
+
+.motion-item__snapshot-secondary {
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+
+.motion-item__snapshot-secondary .motion-item__model-value {
+  flex: 1 1 140px;
+}
+
+@media (max-width: 780px) {
+  .motion-item__snapshot {
+    gap: 8px;
+  }
+
+  .motion-item__snapshot::before {
+    display: none;
+  }
+
+  .motion-item__snapshot-info {
+    padding-left: 8px;
+  }
+}
+
+/* 右上角圆形删除按钮 */
+.motion-item__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--status-warn);
+  border: var(--border-w) solid var(--status-warn-dim);
+  color: #fffdf7;
+  border-radius: 50%;
+  box-shadow: 0 2px 0 0 var(--status-warn-dim);
+  font-size: 14px;
+  line-height: 1;
+  z-index: 2;
+}
+
+.motion-item__delete:hover {
+  background: #ec7a7a;
+}
+
+.motion-item__delete:active {
+  box-shadow: 0 0 0 0 var(--status-warn-dim);
+  transform: translateY(2px);
+}
+
+/* 展开配置区（紧凑）。注意：这是 <fieldset disabled> —— 生成进行中整体冻结
+   卡片上的全部控件；fieldset 默认边框/边距/最小尺寸必须显式复位。 */
+.motion-item__config {
+  border: none;
+  border-top: var(--border-w) dashed var(--border-faint);
+  margin: 0;
+  padding: 10px 12px 12px;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 600px;
+  overflow: visible;
+}
+
+.motion-item__config-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) minmax(118px, 0.42fr) minmax(320px, 1.12fr);
+  gap: 16px;
+  min-width: 0;
+  align-items: start;
+}
+
+.motion-item__config-main,
+.motion-item__config-middle,
+.motion-item__config-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.motion-item__config-middle {
+  align-items: stretch;
+  padding: 4px 0;
+}
+
+.motion-item__config-side {
+  overflow: visible;
+}
+
+.motion-item__config-middle .motion-dir-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+.motion-item__config-middle .motion-dir-modes .pixel-btn {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motion-item__config-middle .motion-switch--compact {
+  justify-content: center;
+  margin-top: 8px;
+}
+
+@media (max-width: 780px) {
+  .motion-item__config {
+    max-height: none;
+  }
+
+  .motion-item__config-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .motion-item__config-middle {
+    padding: 0;
+  }
+
+  .motion-item__config-middle .motion-dir-modes {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .motion-item__config-middle .motion-switch--compact {
+    justify-content: flex-start;
+  }
+}
+
+.motion-item__config-main .field-row {
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.motion-item__config-side .field-row {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.motion-item__config-side .motion-compass {
+  width: min(100%, 320px);
+  align-self: center;
+  gap: 6px;
+}
+
+.motion-item__config-side .motion-compass__cell {
+  min-height: 62px;
+}
+
+.motion-item__config-side .motion-card__actions {
+  margin-top: 4px;
+}
+
+.motion-item__config .pixel-input,
+.motion-item__config select,
+.motion-item__config textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.motion-item__config textarea {
+  min-height: 52px;
+}
+
+/* 动作描述输入框：与预设说明框同款外观（可编辑，随内容增高）。
+   带反馈重新生成弹窗里的反馈输入框（.motion-regen__feedback）共用同一套观感。 */
+.motion-item__config .motion-textarea,
+.motion-regen__feedback {
+  min-height: 34px;
+  max-height: 96px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
+  resize: vertical;
+}
+
+.motion-item__config .motion-textarea:focus,
+.motion-regen__feedback:focus {
+  color: var(--ink);
+}
+
+.motion-autosave-hint {
+  font-size: 10px;
+  text-align: right;
+}
+
+/* 预设说明：不可编辑的多行输入框外观 */
+.motion-note {
+  background: var(--bg-inset);
+  border: var(--border-w-input) solid var(--border-faint);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-input);
+  padding: 5px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  min-height: 34px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.motion-item__config .field-label {
+  font-size: 12px;
+  padding-top: 0;
+}
+
+.motion-item__config .motion-card__actions {
+  margin-top: 2px;
+}
+
+.motion-item__config .motion-card__actions .pixel-btn {
+  padding: 3px 12px;
+  font-size: 12px;
+}
+
+.motion-item__config .motion-divider {
+  margin: 2px 0;
+}
+
+/* --- 罗盘九宫格（点亮式生成） --- */
+.motion-compass-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.motion-compass-caption .mono {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.motion-compass-caption .faint {
+  font-size: 11px;
+  text-align: right;
+}
+
+.motion-compass {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.motion-compass__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  padding: 2px;
+  background: var(--bg-inset);
+  border: 2px dashed var(--border-faint);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+/* 注意：这里必须用 background-color 而非 background 简写 —— 简写会把
+   background-size 一并重置为 auto，已生成格子（--done 有背景图 + cover）在
+   hover 的瞬间会变成按图片原始尺寸显示，看起来像"图突然放大一次"。 */
+.motion-compass__cell:hover {
+  border-color: var(--primary);
+  background-color: var(--primary-bg);
+}
+
+/* 已点亮：薄荷绿实心 */
+.motion-compass__cell--lit {
+  background: var(--primary);
+  border: 2px solid var(--primary-active);
+  box-shadow: 0 3px 0 0 var(--shadow-color-btn);
+}
+
+.motion-compass__cell--lit:hover {
+  background-color: var(--primary-hover);
+}
+
+.motion-compass__cell--lit .motion-compass__dir,
+.motion-compass__cell--lit .motion-compass__meta {
+  color: var(--on-primary);
+}
+
+/* 已生成：实线绿框（点击前往预览），背景为动画第 1 帧 */
+.motion-compass__cell--done {
+  background-color: var(--bg-elevated);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  border: 2px solid var(--status-ok);
+  cursor: pointer;
+}
+
+.motion-compass__cell--done .motion-compass__dir,
+.motion-compass__cell--done .motion-compass__meta {
+  background: rgba(24, 18, 10, 0.6);
+  color: #fffdf7;
+  border-radius: var(--radius-pill);
+  padding: 0 6px;
+  line-height: 1.5;
+  font-weight: 700;
+  text-shadow: none;
+}
+
+.motion-compass__cell--done:hover {
+  border-color: var(--status-ok-dim);
+}
+
+/* 预览九宫格：当前查看的方向加高亮光环 */
+.motion-compass__cell--active {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+/* 未生成（预览视图禁用） */
+.motion-compass__cell--pending {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.motion-compass__cell--pending:hover {
+  border-color: var(--border-faint);
+  background-color: var(--bg-inset);
+}
+
+/* 自动镜像槽：由源方向派生，置灰禁用（不可点亮） */
+.motion-compass__cell--mirror-auto {
+  background: var(--bg-inset);
+  border: 2px dashed var(--border-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.motion-compass__cell--mirror-auto .motion-compass__dir,
+.motion-compass__cell--mirror-auto .motion-compass__meta {
+  color: var(--ink-faint);
+}
+
+.motion-compass__cell--mirror-auto:hover {
+  background-color: var(--bg-inset);
+  border-color: var(--border-faint);
+  transform: none;
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* 缺席：动作无此方向槽位（常驻可见的灰色占位格） */
+.motion-compass__cell--absent {
+  background: var(--bg-inset);
+  border: 2px dashed var(--border-faint);
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* 正在生成的格子：转圈 + 高亮（镜像派生中的格子同样适用） */
+.motion-compass__cell--genning {
+  background: var(--primary-bg);
+  border: 2px solid var(--primary);
+  cursor: progress;
+  opacity: 1;
+}
+
+.motion-compass__cell--genning .motion-compass__dir {
+  color: var(--ink);
+}
+
+.motion-compass__cell--genning .motion-compass__meta {
+  color: var(--primary-active);
+  font-weight: 700;
+}
+
+.motion-compass__cell--genning:hover {
+  background-color: var(--primary-bg);
+  border-color: var(--primary);
+  transform: none;
+  box-shadow: none;
+}
+
+.motion-compass__spin {
+  width: 12px;
+  height: 12px;
+}
+
+.motion-compass__dir {
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.motion-compass__meta {
+  font-size: 10px;
+  color: var(--ink-dim);
+  line-height: 1.2;
+}
+
+.motion-compass__origin {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  min-height: 11px;
+  line-height: 1.2;
+}
+
+.motion-compass__cell--lit .motion-compass__origin {
+  color: var(--on-primary);
+  opacity: 0.85;
+}
+
+.motion-compass__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 60px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: var(--border-w) solid var(--border-faint);
+  border-radius: var(--radius-sm);
+}
+
+.motion-compass__center .mono {
+  color: var(--ink-dim);
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.motion-compass__clear {
+  padding: 1px 10px;
+  font-size: 11px;
+}
+
+/* --- 全屏二级界面：动画预览 --- */
+.motion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(20, 16, 10, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.motion-overlay__panel {
+  width: min(1200px, 100%);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-panel);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-3);
+  overflow: hidden;
+}
+
+.motion-overlay__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+.motion-overlay__bar h3 {
+  font-size: 16px;
+  letter-spacing: 0.06em;
+}
+
+.motion-overlay__bar .faint {
+  flex: 1 1 auto;
+  text-align: right;
+}
+
+.motion-overlay__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  /* 两侧栏在窄窗口可收缩（180-220 / 230-300），中间舞台保底不挤压 */
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(230px, 300px);
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.motion-overlay__side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.motion-overlay__sub {
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  padding-bottom: var(--space-1);
+  border-bottom: var(--border-w) dashed var(--border-faint);
+  flex: none;
+}
+
+.motion-overlay__stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.motion-overlay__stage .motion-preview__stage--large {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.motion-preview__stage--large .pixel-canvas {
+  max-width: 100%;
+}
+
+.motion-overlay__stage .motion-preview__controls {
+  flex: none;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1080px) {
+  .motion-overlay {
+    padding: var(--space-2);
+  }
+
+  .motion-overlay__body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .motion-overlay__stage .motion-preview__stage--large {
+    min-height: 280px;
+  }
+}
+
+/* --- 原始条带查看器（九宫格右键"预览原图"）：动森奶油面板 + 像素化大图 --- */
+.motion-raw {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(20, 16, 10, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  animation: animal-fade 0.2s ease;
+}
+
+.motion-raw__panel {
+  max-width: min(1400px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-panel);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-3);
+  overflow: hidden;
+}
+
+.motion-raw__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.motion-raw__bar h3 {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.motion-raw__bar .faint {
+  flex: 1 1 auto;
+  text-align: right;
+}
+
+.motion-raw__img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(92vh - 96px);
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: var(--bg-inset);
+  border: var(--border-w) dashed var(--border-faint);
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+}
+
+
+

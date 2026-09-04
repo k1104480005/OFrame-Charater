@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -40,8 +41,7 @@ func pngResp() *http.Response {
 }
 
 // filmstripResp builds a VALID PNG filmstrip response for the wired filmstrip
-// pipeline (阶段 5: ConfirmGeneration 现在把 provider 原始字节解码并跑管线, 所以
-// fake provider 必须返回真实可解码的胶片条): frameCount frames of w×h with a
+// pipeline (闃舵 5: ConfirmGeneration 鐜板湪鎶?provider 鍘熷瀛楄妭瑙ｇ爜骞惰窇绠＄嚎, 鎵€浠?// fake provider 蹇呴』杩斿洖鐪熷疄鍙В鐮佺殑鑳剁墖鏉?: frameCount frames of w脳h with a
 // magenta technical background and one opaque block per frame.
 func filmstripResp(t *testing.T, w, h, frameCount int) *http.Response {
 	t.Helper()
@@ -70,7 +70,7 @@ func filmstripResp(t *testing.T, w, h, frameCount int) *http.Response {
 	})
 }
 
-// blockFrame is a w×h magenta frame (洋红仅用于抠图) with a 10×10 opaque block
+// blockFrame is a w脳h magenta frame (娲嬬孩浠呯敤浜庢姞鍥? with a 10脳10 opaque block
 // at (bx, by).
 func blockFrame(w, h, bx, by int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -109,7 +109,7 @@ func newTestService(t *testing.T, client *http.Client) (*Service, string) {
 	}
 	// Most service tests exercise flows that assume the classic built-in trio
 	// (doubao default primary + two fallbacks). Fresh installs start EMPTY
-	// since the 人工验收 update, so tests seed the trio explicitly.
+	// since the 浜哄伐楠屾敹 update, so tests seed the trio explicitly.
 	if err := seedBuiltinProviders(svc); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func newTestService(t *testing.T, client *http.Client) (*Service, string) {
 
 // seedBuiltinProviders writes the classic doubao/openai/agnes trio into the
 // store and rebuilds the registry from it. Fresh installs start with NO
-// provider cards (人工验收更新: 不固定预置 3 个内置 Provider) — tests that
+// provider cards (浜哄伐楠屾敹鏇存柊: 涓嶅浐瀹氶缃?3 涓唴缃?Provider) 鈥?tests that
 // need a pre-configured doubao call this explicitly.
 func seedBuiltinProviders(svc *Service) error {
 	ps := svc.settings.ProviderSettings()
@@ -188,7 +188,7 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 	if rt.calls.Load() != 0 {
 		t.Fatalf("transport calls = %d, want 0", rt.calls.Load())
 	}
-	// 方向数 4 → 3 生成 + 1 镜像; 每方向最多 3 次总尝试.
+	// 鏂瑰悜鏁?4 鈫?3 鐢熸垚 + 1 闀滃儚; 姣忔柟鍚戞渶澶?3 娆℃€诲皾璇?
 	if plan.Directions != 4 || plan.BasicDirections != 3 || plan.MirroredDirections != 1 {
 		t.Fatalf("direction plan: %+v", plan)
 	}
@@ -196,14 +196,14 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 		t.Fatalf("budget: expected=%d maxAttempts=%d maxTotal=%d",
 			plan.ExpectedCalls, plan.MaxAttemptsPerDirection, plan.MaxTotalAttempts)
 	}
-	// 默认路由 Doubao (首次生成默认).
+	// 榛樿璺敱 Doubao (棣栨鐢熸垚榛樿).
 	if plan.ProviderID != provider.ProviderDoubao || plan.Model != provider.DefaultDoubaoModel {
 		t.Fatalf("default provider: %s/%s", plan.ProviderID, plan.Model)
 	}
 	if plan.Capability != provider.ModalityImage.String() {
 		t.Fatalf("generation capability = %q, want image", plan.Capability)
 	}
-	// 外发素材 = 主 + 辅助参考图.
+	// 澶栧彂绱犳潗 = 涓?+ 杈呭姪鍙傝€冨浘.
 	if len(plan.OutboundMaterials) != 2 {
 		t.Fatalf("outbound materials = %d, want 2", len(plan.OutboundMaterials))
 	}
@@ -225,9 +225,8 @@ func TestPrepareGenerationIsExternalCallFree(t *testing.T) {
 }
 
 // TestPrepareGenerationEightDirections verifies the 8-direction strategy's
-// automatic mirror 口径 with the review report's explicit semantics: 5 生成
-// (right/up/down/up-right/down-left) + 3 镜像 (left/up-left/down-right) —
-// down-right is derived ONE-WAY from down-left, so down-left joins the basic
+// automatic mirror 鍙ｅ緞 with the review report's explicit semantics: 5 鐢熸垚
+// (right/up/down/up-right/down-left) + 3 闀滃儚 (left/up-left/down-right) 鈥?// down-right is derived ONE-WAY from down-left, so down-left joins the basic
 // set; down (and up) are self-symmetric under horizontal mirroring.
 func TestPrepareGenerationEightDirections(t *testing.T) {
 	svc, _ := newTestService(t, nil)
@@ -239,7 +238,7 @@ func TestPrepareGenerationEightDirections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 8 方向 → 5 生成 + 3 镜像; 每方向最多 3 次总尝试.
+	// 8 鏂瑰悜 鈫?5 鐢熸垚 + 3 闀滃儚; 姣忔柟鍚戞渶澶?3 娆℃€诲皾璇?
 	if plan.Directions != 8 || plan.BasicDirections != 5 || plan.MirroredDirections != 3 {
 		t.Fatalf("direction plan: %+v", plan)
 	}
@@ -247,14 +246,14 @@ func TestPrepareGenerationEightDirections(t *testing.T) {
 		t.Fatalf("budget: expected=%d maxAttempts=%d maxTotal=%d",
 			plan.ExpectedCalls, plan.MaxAttemptsPerDirection, plan.MaxTotalAttempts)
 	}
-	// 口径锁定: 生成方向与镜像方向的具体标签 (复核报告语义).
+	// 鍙ｅ緞閿佸畾: 鐢熸垚鏂瑰悜涓庨暅鍍忔柟鍚戠殑鍏蜂綋鏍囩 (澶嶆牳鎶ュ憡璇箟).
 	if got := plan.BasicLabels; !slices.Equal(got, []string{"right", "up", "down", "up-right", "down-left"}) {
 		t.Fatalf("basicLabels(8) = %v", got)
 	}
 	if got := plan.MirroredLabels; !slices.Equal(got, []string{"left", "up-left", "down-right"}) {
 		t.Fatalf("mirroredLabels(8) = %v", got)
 	}
-	// 每个镜像方向都能在基本集合中找到其镜像源 (down 自对称, 不产生派生).
+	// 姣忎釜闀滃儚鏂瑰悜閮借兘鍦ㄥ熀鏈泦鍚堜腑鎵惧埌鍏堕暅鍍忔簮 (down 鑷绉? 涓嶄骇鐢熸淳鐢?.
 	for _, md := range plan.MirroredLabels {
 		src := motion.MirrorSource(md)
 		if !slices.Contains(plan.BasicLabels, src) {
@@ -264,7 +263,7 @@ func TestPrepareGenerationEightDirections(t *testing.T) {
 }
 
 // TestConfirmGenerationCancelMakesNoCalls verifies the cancel branch (spec 4.5:
-// 取消则不发起任何调用).
+// 鍙栨秷鍒欎笉鍙戣捣浠讳綍璋冪敤).
 func TestConfirmGenerationCancelMakesNoCalls(t *testing.T) {
 	rt := &fakeRT{handler: func(r *http.Request) (*http.Response, error) {
 		t.Fatal("cancelled confirmation must not call any provider")
@@ -294,7 +293,7 @@ func TestConfirmGenerationCancelMakesNoCalls(t *testing.T) {
 
 // TestConfirmGenerationAcceptsAndExecutes verifies the accept branch executes
 // one provider call per generated direction, runs the filmstrip pipeline on
-// the raw bytes (解码 → ProcessFilmstrip → 候选落盘 → CandidateSet 保留), and
+// the raw bytes (瑙ｇ爜 鈫?ProcessFilmstrip 鈫?鍊欓€夎惤鐩?鈫?CandidateSet 淇濈暀), and
 // records call statistics.
 func TestConfirmGenerationAcceptsAndExecutes(t *testing.T) {
 	var sawBodies [][]byte
@@ -330,7 +329,7 @@ func TestConfirmGenerationAcceptsAndExecutes(t *testing.T) {
 	if len(res.Results) != 3 {
 		t.Fatalf("direction results = %d", len(res.Results))
 	}
-	// 生成执行链已接入 filmstrip 管线: 每个方向产出候选并落盘.
+	// 鐢熸垚鎵ц閾惧凡鎺ュ叆 filmstrip 绠＄嚎: 姣忎釜鏂瑰悜浜у嚭鍊欓€夊苟钀界洏.
 	for _, r := range res.Results {
 		if r.CandidateID == "" {
 			t.Fatalf("direction %s produced no candidate: %+v", r.Direction, r)
@@ -342,14 +341,14 @@ func TestConfirmGenerationAcceptsAndExecutes(t *testing.T) {
 			}
 		}
 	}
-	// CandidateSet 保留: 候选可被后续操作读到.
+	// CandidateSet 淇濈暀: 鍊欓€夊彲琚悗缁搷浣滆鍒?
 	if got := svc.CandidateList(root); len(got) != 3 {
 		t.Fatalf("retained candidates = %d, want 3", len(got))
 	}
 	if len(sawBodies) != 3 {
 		t.Fatalf("transport calls = %d, want 3 (right/up/down generated)", len(sawBodies))
 	}
-	// 外发素材进入请求体 (reference_images).
+	// 澶栧彂绱犳潗杩涘叆璇锋眰浣?(reference_images).
 	var body map[string]any
 	if err := json.Unmarshal(sawBodies[0], &body); err != nil {
 		t.Fatal(err)
@@ -357,7 +356,7 @@ func TestConfirmGenerationAcceptsAndExecutes(t *testing.T) {
 	if refs, _ := body["reference_images"].([]any); len(refs) != 2 {
 		t.Fatalf("request reference_images = %v", body["reference_images"])
 	}
-	// 每次调用后统计更新.
+	// 姣忔璋冪敤鍚庣粺璁℃洿鏂?
 	stats := svc.ProviderStats()
 	doubao := stats.ForProvider(provider.ProviderDoubao)
 	if len(doubao) != 1 || doubao[0].CallCount != 3 || doubao[0].EstimatedCost < 0.14 {
@@ -454,7 +453,7 @@ func TestProviderConfigLifecycle(t *testing.T) {
 		t.Fatal("expected validation error for doubao without key")
 	}
 
-	// A fresh service instance loads the persisted settings (GUI/CLI 共享).
+	// A fresh service instance loads the persisted settings (GUI/CLI 鍏变韩).
 	svc2, err := New(Options{
 		SettingsDir: dir,
 		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -480,7 +479,7 @@ func TestProviderConfigLifecycle(t *testing.T) {
 }
 
 // TestPresetCatalog verifies the shared service exposes the PerfectPixel
-// presets (四个风格预设 + 动作预设).
+// presets (鍥涗釜椋庢牸棰勮 + 鍔ㄤ綔棰勮).
 func TestPresetCatalog(t *testing.T) {
 	svc, _ := newTestService(t, nil)
 	cat := svc.PresetCatalog()
@@ -489,5 +488,68 @@ func TestPresetCatalog(t *testing.T) {
 	}
 	if len(cat.Actions) < 4 {
 		t.Fatalf("action presets = %d", len(cat.Actions))
+	}
+}
+
+// TestPrepareGenerationSendsAdoptedBaseSprite verifies the perfectpixel
+// alignment: the adopted base character sprite is attached as the FIRST
+// outbound reference (canonical base sprite) and the prompt snapshot carries
+// the Subject lock identity section (identity-consistency key).
+func TestPrepareGenerationSendsAdoptedBaseSprite(t *testing.T) {
+	rt := &fakeRT{handler: func(r *http.Request) (*http.Response, error) {
+		t.Fatal("PrepareGeneration must not call any provider")
+		return nil, nil
+	}}
+	svc, _ := newTestService(t, &http.Client{Transport: rt})
+	root := newTestPackage(t)
+
+	pkg, err := identity.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := "candidates/base-sprite.png"
+	abs := filepath.Join(root, "candidates", "base-sprite.png")
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(abs, []byte("png-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cand, err := pkg.AddBaseCharacterCandidate(rel, "prov", "model", "prompt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.AdoptBaseCharacter(cand.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := svc.PrepareGeneration(context.Background(), GenerationRequest{
+		PackagePath: root, Directions: 4, StylePresetID: "pixel", ActionPresetID: "walk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// outbound materials = base sprite + main + aux references (sprite first).
+	if len(plan.OutboundMaterials) != 3 {
+		t.Fatalf("outbound materials = %d, want 3 (base sprite + main + aux)", len(plan.OutboundMaterials))
+	}
+	first := plan.OutboundMaterials[0]
+	if first.Kind != "base_sprite" || first.Role != "base_sprite" || first.MaterialID != "base-sprite" {
+		t.Errorf("first outbound material = %+v, want the canonical base sprite", first)
+	}
+	if first.Path != abs {
+		t.Errorf("base sprite path = %q, want %q", first.Path, abs)
+	}
+	if !strings.Contains(plan.Prompt.Prompt, "Subject lock (top priority)") {
+		t.Errorf("prompt misses the subject lock section: %s", plan.Prompt.Prompt)
+	}
+	found := false
+	for _, r := range plan.Prompt.References {
+		if r.Role == "base_sprite" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("prompt snapshot references miss the base sprite: %+v", plan.Prompt.References)
 	}
 }

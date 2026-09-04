@@ -307,3 +307,86 @@ func TestGenerationPlanPrepareRejectsForeignPackagePath(t *testing.T) {
 		t.Fatalf("foreign packagePath error = %v, want explicit mismatch refusal", err)
 	}
 }
+
+// TestMotionGenerateDirectionsPlan covers the motion-scoped generation plan
+// through the GUI bindings: the motion's own Provider/model is applied when the
+// request omits both, and GenerateDirections (点亮式生成) drives the basic set
+// exactly while mirror-derived slots are appended from their sources — never
+// accepted as direct AI targets.
+func TestMotionGenerateDirectionsPlan(t *testing.T) {
+	app, _ := newTestApp(t, nil)
+	if _, err := app.PackageCreate("Hero", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.IdentitySetCanvas(32, 32); err != nil {
+		t.Fatal(err)
+	}
+	main := filepath.Join(t.TempDir(), "ref-main.png")
+	if err := os.WriteFile(main, []byte("main"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.IdentityImportMaterial("reference_image", main, "主参考图", "main_reference"); err != nil {
+		t.Fatal(err)
+	}
+
+	// 8-direction mirror-on motion with its own Provider/model (openai).
+	m, err := app.MotionCreate("wave", 8, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ID == "" || len(m.Directions) != 8 {
+		t.Fatalf("motion: %+v", m)
+	}
+	if _, err := app.MotionSetProviderSettings(m.ID, "openai", "gpt-image-2"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plan WITHOUT provider/model: the motion's own config must be applied.
+	plan, err := app.GenerationPlanPrepare(GenerationRequestView{MotionID: m.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.ProviderID != "openai" || plan.Model != "gpt-image-2" {
+		t.Fatalf("motion-level provider not applied: %s / %s", plan.ProviderID, plan.Model)
+	}
+
+	// 点亮式生成: basic = the exact picked set; mirrored derived from sources.
+	plan2, err := app.GenerationPlanPrepare(GenerationRequestView{
+		MotionID:           m.ID,
+		GenerateDirections: []string{"right", "up-right", "down"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(plan2.BasicLabels, ",") != "right,up-right,down" {
+		t.Fatalf("basic labels = %v", plan2.BasicLabels)
+	}
+	if strings.Join(plan2.MirroredLabels, ",") != "left,up-left" {
+		t.Fatalf("mirrored labels = %v, want left,up-left (right→left, up-right→up-left)", plan2.MirroredLabels)
+	}
+	if plan2.BasicDirections != 3 || plan2.MirroredDirections != 2 || plan2.ExpectedCalls != 3 {
+		t.Fatalf("plan counts: basic=%d mirrored=%d calls=%d", plan2.BasicDirections, plan2.MirroredDirections, plan2.ExpectedCalls)
+	}
+
+	// A mirror-derived slot must never be a direct generation target.
+	if _, err := app.GenerationPlanPrepare(GenerationRequestView{
+		MotionID:           m.ID,
+		GenerateDirections: []string{"left"},
+	}); err == nil || !strings.Contains(err.Error(), "derived by mirroring") {
+		t.Fatalf("mirror-slot pick error = %v, want derived-by-mirroring refusal", err)
+	}
+	// Picking the source AND its mirror slot together is refused too.
+	if _, err := app.GenerationPlanPrepare(GenerationRequestView{
+		MotionID:           m.ID,
+		GenerateDirections: []string{"right", "left"},
+	}); err == nil || !strings.Contains(err.Error(), "derived by mirroring") {
+		t.Fatalf("source+slot pick error = %v, want derived-by-mirroring refusal", err)
+	}
+	// Unknown direction is refused.
+	if _, err := app.GenerationPlanPrepare(GenerationRequestView{
+		MotionID:           m.ID,
+		GenerateDirections: []string{"north"},
+	}); err == nil || !strings.Contains(err.Error(), "has no direction") {
+		t.Fatalf("unknown direction error = %v, want has-no-direction refusal", err)
+	}
+}

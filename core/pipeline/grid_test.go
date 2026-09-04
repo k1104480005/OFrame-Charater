@@ -154,3 +154,41 @@ func TestFitToCanvasCenterPlace(t *testing.T) {
 		t.Errorf("center place = %v at (6,11), want R=9", got)
 	}
 }
+
+// TestFitToCanvasProportionalDownscale verifies the oversized non-divisible
+// path: the slice is proportionally downscaled (nearest-neighbor) and padded —
+// content is never cropped away.
+func TestFitToCanvasProportionalDownscale(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 60, 90))
+	// 6×6 content blocks at opposite corners (single pixels may be skipped by
+	// nearest sampling, blocks may not).
+	for dy := 0; dy < 6; dy++ {
+		for dx := 0; dx < 6; dx++ {
+			src.SetRGBA(dx, dy, color.RGBA{R: 1, A: 255})       // top-left block
+			src.SetRGBA(54+dx, 84+dy, color.RGBA{B: 2, A: 255}) // bottom-right block
+		}
+	}
+	out, err := FitToCanvas(src, 32, 32)
+	if err != nil {
+		t.Fatalf("FitToCanvas: %v", err)
+	}
+	if out.Bounds().Dx() != 32 || out.Bounds().Dy() != 32 {
+		t.Fatalf("out = %dx%d, want 32x32", out.Bounds().Dx(), out.Bounds().Dy())
+	}
+	// scale = min(32/60, 32/90) = 32/90 → 21×32 scaled content, centered.
+	// Both blocks must survive (proportional fit, no cropping).
+	foundTL, foundBR := false, false
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 32; x++ {
+			if c := out.RGBAAt(x, y); c.R == 1 && c.A == 255 {
+				foundTL = true
+			}
+			if c := out.RGBAAt(x, y); c.B == 2 && c.A == 255 {
+				foundBR = true
+			}
+		}
+	}
+	if !foundTL || !foundBR {
+		t.Fatalf("blocks lost by proportional downscale: tl=%v br=%v", foundTL, foundBR)
+	}
+}

@@ -7,6 +7,7 @@ import {
   BaseCharacterCandidatesGet,
   BaseCharacterDelete,
   BaseCharacterDescribeImage,
+  BaseCharacterFlip,
   BaseCharacterImport,
   BaseCharacterImportCropped,
   BaseCharacterReject,
@@ -17,6 +18,7 @@ import {
   CurrentAssets,
   CurrentPackage,
   DirectionPreview,
+  DirectionThumbnail,
   DraftClear,
   DraftGet,
   DraftPut,
@@ -46,11 +48,20 @@ import {
   IdentitySetCanvas,
   IdentitySetDescription,
   IdentitySetPerfectPixelStandard,
+  MotionBatchSummary,
+  MotionClearDirection,
+  MotionDirectionRawStrip,
   MotionCreate,
+  MotionFlipDirection,
+  MotionDelete,
   MotionGet,
   MotionList,
   MotionPlaybackTempo,
+  MotionRename,
   MotionSetFrameDurations,
+  MotionSetGenerationSettings,
+  MotionSetLoop,
+  MotionSetProviderSettings,
   MotionSetStrategy,
   OperationLog,
   PackageClose,
@@ -120,6 +131,10 @@ export type MaterialView = main.MaterialView;
 export type MaterialThumbView = main.MaterialThumbView;
 export type MaterialImageView = main.MaterialImageView;
 export type CurrentModelsView = main.CurrentModelsView;
+export type MotionBatchSummaryView = main.MotionBatchSummaryView;
+export type MotionBatchItemView = main.MotionBatchItemView;
+export type MotionBatchCostView = main.MotionBatchCostView;
+export type MotionBatchSelectionView = main.MotionBatchSelectionView;
 export type MotionView = main.MotionView;
 export type OperationLogEntryView = main.OperationLogEntryView;
 export type OutboundMaterialView = main.OutboundMaterialView;
@@ -339,6 +354,11 @@ export async function deleteBaseCharacter(id: string): Promise<void> {
   return BaseCharacterDelete(id);
 }
 
+/** mirror one base-character candidate image horizontally (水平翻转，自逆操作，再点一次翻回） */
+export async function flipBaseCharacter(id: string): Promise<void> {
+  return BaseCharacterFlip(id);
+}
+
 /**
  * record a local sprite image as a PENDING base-character candidate (the
  * import base source; no external calls). The image must match the logical
@@ -548,12 +568,57 @@ export async function fetchMotion(id: string): Promise<MotionView> {
   return MotionGet(id);
 }
 
+export async function deleteMotion(id: string): Promise<void> {
+  return MotionDelete(id);
+}
+
 export async function setMotionStrategy(id: string, count: number, mirror: boolean): Promise<MotionView> {
   return MotionSetStrategy(id, count, mirror);
 }
 
+export async function setMotionGenerationSettings(
+  id: string,
+  actionPresetID: string,
+  actionDescription: string,
+  frameCount: number,
+): Promise<MotionView> {
+  return MotionSetGenerationSettings(id, actionPresetID, actionDescription, frameCount);
+}
+
+export async function setMotionProviderSettings(id: string, providerID: string, model: string): Promise<MotionView> {
+  return MotionSetProviderSettings(id, providerID, model);
+}
+
+export async function setMotionLoop(id: string, loop: boolean): Promise<MotionView> {
+  return MotionSetLoop(id, loop);
+}
+
+export async function renameMotion(id: string, name: string): Promise<MotionView> {
+  return MotionRename(id, name);
+}
+
+/** 删除一格动画（九宫格右键"删除"）：该方向回到未生成状态，可重新点亮生成 */
+export async function clearMotionDirection(id: string, direction: string): Promise<MotionView> {
+  return MotionClearDirection(id, direction);
+}
+
+/** 方向动画的原始条带图（九宫格右键"预览原图"：大模型返回、未切分的 base64 PNG） */
+export async function fetchDirectionRawStrip(id: string, direction: string): Promise<string> {
+  return MotionDirectionRawStrip(id, direction);
+}
+
+/** 水平翻转一格动画（九宫格右键）：镜像对同步翻转，自逆操作，返回确认文案 */
+export async function flipMotionDirection(id: string, direction: string): Promise<string> {
+  return MotionFlipDirection(id, direction);
+}
+
 export async function setMotionFrameDurations(id: string, direction: string, durationsMs: number[]): Promise<MotionView> {
   return MotionSetFrameDurations(id, direction, durationsMs);
+}
+
+/** 批量操作区统计：按各动作卡的勾选方向统计未生成格子/调用/费用（offline，不建 plan） */
+export async function fetchBatchSummary(selections: MotionBatchSelectionView[]): Promise<MotionBatchSummaryView> {
+  return MotionBatchSummary(selections);
 }
 
 export async function fetchMotionTempo(id: string, direction: string): Promise<number[]> {
@@ -590,6 +655,11 @@ export async function fetchConsistencyScore(useAI: boolean): Promise<Consistency
 
 export async function fetchDirectionPreview(motionId: string, direction: string): Promise<CandidatePreviewView> {
   return DirectionPreview(motionId, direction);
+}
+
+/** 方向动画第 1 帧的 base64 PNG（九宫格缩略图） */
+export async function fetchDirectionThumbnail(motionId: string, direction: string): Promise<string> {
+  return DirectionThumbnail(motionId, direction);
 }
 
 // --- lightweight editing (阶段 7: 可回放编辑指令, 任务 7.1–7.5) ---

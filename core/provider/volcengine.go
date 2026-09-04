@@ -170,12 +170,12 @@ func arkReferenceImages(providerID string, refs []ReferenceImage) ([]string, err
 	imgs := make([]string, 0, len(refs))
 	for _, r := range refs {
 		switch r.Kind {
-		case arkRefKindReferenceImage, arkRefKindSprite:
+		case arkRefKindReferenceImage, arkRefKindSprite, RefKindBaseSprite:
 			// attachable below
 		default:
 			return nil, MarkNotRetryable(configErrf(
-				"provider %s: unsupported reference image kind %q (only %q/%q images attach to the Ark image field)",
-				providerID, r.Kind, arkRefKindReferenceImage, arkRefKindSprite))
+				"provider %s: unsupported reference image kind %q (only %q/%q/%q images attach to the Ark image field)",
+				providerID, r.Kind, arkRefKindReferenceImage, arkRefKindSprite, RefKindBaseSprite))
 		}
 		if len(r.Data) == 0 {
 			return nil, MarkNotRetryable(configErrf(

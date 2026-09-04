@@ -209,12 +209,12 @@ func minimaxSubjectReferences(providerID string, refs []ReferenceImage) ([]minim
 	}
 	r := refs[0]
 	switch r.Kind {
-	case minimaxRefKindReferenceImage, minimaxRefKindSprite:
+	case minimaxRefKindReferenceImage, minimaxRefKindSprite, RefKindBaseSprite:
 		// attachable below
 	default:
 		return nil, MarkNotRetryable(configErrf(
-			"provider %s: unsupported reference image kind %q (only %q/%q images attach as subject_reference)",
-			providerID, r.Kind, minimaxRefKindReferenceImage, minimaxRefKindSprite))
+			"provider %s: unsupported reference image kind %q (only %q/%q/%q images attach as subject_reference)",
+			providerID, r.Kind, minimaxRefKindReferenceImage, minimaxRefKindSprite, RefKindBaseSprite))
 	}
 	if len(r.Data) == 0 {
 		return nil, MarkNotRetryable(configErrf(

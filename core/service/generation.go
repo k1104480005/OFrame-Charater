@@ -46,20 +46,23 @@ const (
 // motion, plus the replacement (3.5) and regeneration (5.6) flows.
 type GenerationRequest struct {
 	PackagePath             string   `json:"packagePath"`
-	BaseCharacter           bool     `json:"baseCharacter,omitempty"`     // text-to-character single-image plan
-	MotionID                string   `json:"motionId,omitempty"`          // "" → legacy direction-count mode
-	ProviderID              string   `json:"providerId"`                  // "" → active provider (default Doubao)
-	Model                   string   `json:"model"`                       // "" → provider default
-	Directions              int      `json:"directions"`                  // 1 | 4 | 8 (legacy mode; 0 → 1)
-	DisableMirror           bool     `json:"disableMirror,omitempty"`     // legacy mode: 关闭镜像 → 所有方向独立生成
-	StylePresetID           string   `json:"stylePresetId"`               // "" → pixel
-	StyleCustom             string   `json:"styleCustom,omitempty"`       // 自定义风格提示词（非空时优先于 StylePresetID）
-	Description             string   `json:"description,omitempty"`       // 本次生成的提示词覆盖；空 → 身份描述
-	ActionPresetID          string   `json:"actionPresetId"`              // "" → walk
-	FrameCount              int      `json:"frameCount"`                  // 0 → 4 (或动作已有序列帧数)
-	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`     // 0 → 3
-	ReplaceDirections       []string `json:"replaceDirections,omitempty"` // 3.5: 手动替换的方向
-	RegenerateOf            string   `json:"regenerateOf,omitempty"`      // 5.6: 上一候选 id (重新生成)
+	BaseCharacter           bool     `json:"baseCharacter,omitempty"`      // text-to-character single-image plan
+	MotionID                string   `json:"motionId,omitempty"`           // "" → legacy direction-count mode
+	ProviderID              string   `json:"providerId"`                   // "" → active provider (default Doubao)
+	Model                   string   `json:"model"`                        // "" → provider default
+	Directions              int      `json:"directions"`                   // 1 | 4 | 8 (legacy mode; 0 → 1)
+	DisableMirror           bool     `json:"disableMirror,omitempty"`      // legacy mode: 关闭镜像 → 所有方向独立生成
+	StylePresetID           string   `json:"stylePresetId"`                // "" → pixel
+	StyleCustom             string   `json:"styleCustom,omitempty"`        // 自定义风格提示词（非空时优先于 StylePresetID）
+	Description             string   `json:"description,omitempty"`        // 本次生成的提示词覆盖；空 → 身份描述
+	ActionPresetID          string   `json:"actionPresetId"`               // "" → walk
+	Feedback                string   `json:"feedback,omitempty"`           // user feedback for regeneration
+	FrameCount              int      `json:"frameCount"`                   // 0 → 4 (或动作已有序列帧数)
+	MaxAttemptsPerDirection int      `json:"maxAttemptsPerDirection"`      // 0 → 3
+	ReplaceDirections       []string `json:"replaceDirections,omitempty"`  // 3.5: 手动替换的方向
+	RegenerateOf            string   `json:"regenerateOf,omitempty"`       // 5.6: 上一候选 id (重新生成)
+	GenerateDirections      []string `json:"generateDirections,omitempty"` // 点亮式生成：仅生成这些方向（空 → 按动作策略全部生成）
+	ForceRegenerate         bool     `json:"forceRegenerate,omitempty"`    // 显式重新生成：绕过幂等去重缓存，必须真实调用 Provider
 }
 
 // OutboundMaterial is one material that will be sent to the provider (外发素材):
@@ -99,6 +102,7 @@ type GenerationPlan struct {
 	FrameCount              int                     `json:"frameCount"`
 	Anchors                 []pipeline.AnchorPoint  `json:"anchors,omitempty"` // identity-level anchors (校正输入)
 	RegenerateOf            string                  `json:"regenerateOf,omitempty"`
+	ForceRegenerate         bool                    `json:"forceRegenerate,omitempty"` // 显式重新生成：确认时绕过幂等去重缓存
 	CostPerCall             float64                 `json:"costPerCall"`
 	Currency                string                  `json:"currency"`
 	ExpectedCost            float64                 `json:"expectedCost"` // 预计费用 = 预计调用量 × 单价
@@ -218,34 +222,11 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 		return s.prepareBaseCharacter(pkg, req)
 	}
 
-	// Provider + model (first generation defaults to Doubao).
-	ps := s.settings.ProviderSettings()
-	if len(ps.Providers) == 0 {
-		// 人工验收更新：fresh installs start with NO provider cards — the user
-		// adds one from the seven presets first. Fail with a readable,
-		// actionable error instead of "unknown provider doubao".
-		return nil, fmt.Errorf("service: 尚未配置任何 Provider — 请先在设置的七预设中添加并填写密钥")
-	}
-	providerID := req.ProviderID
-	if providerID == "" {
-		providerID = ps.ActiveProvider
-	}
-	if providerID == "" {
-		providerID = provider.DefaultProviderID
-	}
-	prov, err := s.registry.Get(providerID)
+	// Provider + model (first generation defaults to Doubao): the shared
+	// resolution chain also backs the batch summary (批量操作).
+	_, cfg, providerID, model, err := s.resolveImageProvider(pkg.Root(), req.MotionID, req.ProviderID, req.Model)
 	if err != nil {
 		return nil, err
-	}
-	cfg := ps.ConfigFor(providerID)
-	// Capability gate (align-framebaker-providers 1.4): resolve and validate the
-	// image model against the provider's capability declaration AND its model
-	// catalog BEFORE building the confirmation plan. A mismatched request fails
-	// here — offline, readable, errors.Is-branchable — and neither provider nor
-	// model is ever silently substituted.
-	model, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityImage, req.Model)
-	if err != nil {
-		return nil, fmt.Errorf("service: %w", err)
 	}
 
 	// Presets.
@@ -277,10 +258,80 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	if err != nil {
 		return nil, err
 	}
+	// A motion owns its action semantics. Legacy motions without these optional
+	// fields retain the historical walk/4-frame defaults.
+	if motionID != "" {
+		ms, err := motion.NewStore(pkg.Root()).Load()
+		if err != nil {
+			return nil, err
+		}
+		m, err := ms.Get(motionID)
+		if err != nil {
+			return nil, err
+		}
+		if m.ActionPresetID == "custom" {
+			if strings.TrimSpace(m.ActionDescription) == "" {
+				return nil, fmt.Errorf("service: custom action %q has no action description", m.Name)
+			}
+			action = pipeline.ActionPreset{ID: "custom", Name: "自定义", Description: m.ActionDescription, PromptText: m.ActionDescription}
+		} else {
+			actionID = m.ActionPresetID
+			if actionID == "" {
+				actionID = pipeline.ActionWalk.ID
+			}
+			action, err = pipeline.ActionPresetByID(actionID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		// 动作的循环属性由动作自身决定（用户可在动作卡切换；预设值仅作默认），
+		// 提示词按其生成"无缝循环"或"一次性动作"语义。
+		action.Loop = m.Loop
+	}
 	kind := PlanKindGenerate
 	basic := motion.BasicDirections(strategy)
 	mirrored := motion.MirroredDirections(strategy)
 	expectedCalls := len(basic)
+	// 点亮式生成（九宫格直选）：请求显式列出要生成的方向时，仅对集合中的
+	// 方向发起调用，不再按方向策略推导 basic 集合。动作开启自动镜像时，
+	// 镜像方向由其源方向派生（源方向需在生成集合中），不额外计调用。
+	if motionID != "" && len(req.GenerateDirections) > 0 {
+		ms, err := motion.NewStore(pkg.Root()).Load()
+		if err != nil {
+			return nil, err
+		}
+		m, err := ms.Get(motionID)
+		if err != nil {
+			return nil, err
+		}
+		for _, dir := range req.GenerateDirections {
+			if m.Direction(dir) == nil {
+				return nil, fmt.Errorf("service: motion %q has no direction %q to generate", motionID, dir)
+			}
+			if m.Strategy.Mirror {
+				// 镜像派生槽不可被点亮生成：其帧由源方向水平镜像派生（单向
+				// 映射），对派生槽本身发起 AI 调用会破坏镜像语义。无论源方向
+				// 是否也在集合中都直接拒绝（358 行的重复校验在此前提下不触发）。
+				if containsStr(motion.MirroredDirections(m.Strategy), dir) {
+					return nil, fmt.Errorf("service: mirror is on for motion %q: direction %q is derived by mirroring %q, generate its source instead", motionID, dir, motion.MirrorSource(dir))
+				}
+			}
+		}
+		basic = req.GenerateDirections
+		mirrored = nil
+		if m.Strategy.Mirror {
+			for _, md := range motion.MirroredDirections(m.Strategy) {
+				src := motion.MirrorSource(md)
+				for _, dir := range basic {
+					if dir == src {
+						mirrored = append(mirrored, md)
+						break
+					}
+				}
+			}
+		}
+		expectedCalls = len(basic)
+	}
 	switch {
 	case req.RegenerateOf != "":
 		kind = PlanKindRegenerate
@@ -311,7 +362,7 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	}
 
 	// Outbound materials: the identity's reference images (主 + 辅助), resolved
-	// to absolute paths. Sprites are the identity basis and are not sent out.
+	// to absolute paths.
 	var outbound []OutboundMaterial
 	for _, m := range pkg.ReferenceImages() {
 		if m.Role != identity.RoleMainReference && m.Role != identity.RoleAuxiliaryReference {
@@ -325,6 +376,16 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 			MaterialID: m.ID, Kind: m.Kind, Role: m.Role, Name: m.Name, Path: abs,
 		})
 	}
+	// 对齐 perfectpixel（app.go GenerateState 的 refs := [][]byte{baseRaw}）：
+	// 已采纳的基础角色精灵图作为头号外发参考图（canonical base sprite），
+	// 配合 BuildPrompt 的 Subject lock 段落让模型逐姿势复刻身份图的外观与
+	// 配色 —— 动画与身份图一致性的关键。精灵图此前不外发，是身份一致性问题
+	// 的根源；此处只读取身份包中已采纳候选的文件，不修改 identity 包。
+	if adopted, err := adoptedBaseSpriteOutbound(pkg); err != nil {
+		return nil, err
+	} else if adopted != nil {
+		outbound = append([]OutboundMaterial{*adopted}, outbound...)
+	}
 
 	// Prompt snapshot. The frame count follows the motion's existing sequence
 	// length for replacement/regeneration (帧数与节奏沿用的基础); otherwise the
@@ -333,13 +394,18 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 	if frameCount <= 0 {
 		frameCount = defaultFrameCount
 	}
-	if motionID != "" && kind != PlanKindGenerate {
+	if motionID != "" {
 		if ms, err := motion.NewStore(pkg.Root()).Load(); err == nil {
 			if m, err := ms.Get(motionID); err == nil {
-				for _, d := range m.Directions {
-					if len(d.Sequence.Frames) > 0 {
-						frameCount = len(d.Sequence.Frames)
-						break
+				if kind == PlanKindGenerate && m.TargetFrameCount > 0 {
+					frameCount = m.TargetFrameCount
+				}
+				if kind != PlanKindGenerate {
+					for _, d := range m.Directions {
+						if len(d.Sequence.Frames) > 0 {
+							frameCount = len(d.Sequence.Frames)
+							break
+						}
 					}
 				}
 			}
@@ -362,6 +428,7 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 		CanvasHeight: canvas.UnitHeight,
 		FrameCount:   frameCount,
 		Directions:   strategy.Count,
+		Feedback:     req.Feedback,
 	})
 	if err != nil {
 		return nil, err
@@ -398,6 +465,7 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 		FrameCount:              frameCount,
 		Anchors:                 anchorsFromPkg(pkg),
 		RegenerateOf:            req.RegenerateOf,
+		ForceRegenerate:         req.ForceRegenerate,
 		CostPerCall:             price,
 		Currency:                provider.Currency(providerID),
 		ExpectedCost:            round2(float64(expectedCalls) * price),
@@ -413,6 +481,53 @@ func (s *Service) PrepareGeneration(ctx context.Context, req GenerationRequest) 
 		"maxAttemptsPerDirection", maxAttempts, "outboundMaterials", len(outbound),
 		"regenerateOf", req.RegenerateOf, "prompt", prompt.Prompt)
 	return plan, nil
+}
+
+// resolveImageProvider resolves the effective image provider, config and model
+// for a generation request (offline; no external call): the motion's own
+// Provider/模型 settings override the request (每个动作可独立配置；空 = 跟随全局
+// 默认), the request falls back to the active provider, then the built-in
+// default. The model is validated against the provider's capability
+// declaration AND its model catalog BEFORE any plan/summary is built — a
+// mismatched request fails here, offline, readable, errors.Is-branchable — and
+// neither provider nor model is ever silently substituted.
+func (s *Service) resolveImageProvider(pkgPath, motionID, reqProviderID, reqModel string) (provider.Provider, provider.ProviderConfig, string, string, error) {
+	ps := s.settings.ProviderSettings()
+	if len(ps.Providers) == 0 {
+		// 人工验收更新：fresh installs start with NO provider cards — the user
+		// adds one from the seven presets first. Fail with a readable,
+		// actionable error instead of "unknown provider doubao".
+		return nil, provider.ProviderConfig{}, "", "", fmt.Errorf("service: 尚未配置任何 Provider — 请先在设置的七预设中添加并填写密钥")
+	}
+	if motionID != "" {
+		if ms, err := motion.NewStore(pkgPath).Load(); err == nil {
+			if m, err := ms.Get(motionID); err == nil {
+				if reqProviderID == "" && strings.TrimSpace(m.ProviderID) != "" {
+					reqProviderID = m.ProviderID
+				}
+				if reqModel == "" && strings.TrimSpace(m.Model) != "" {
+					reqModel = m.Model
+				}
+			}
+		}
+	}
+	providerID := reqProviderID
+	if providerID == "" {
+		providerID = ps.ActiveProvider
+	}
+	if providerID == "" {
+		providerID = provider.DefaultProviderID
+	}
+	prov, err := s.registry.Get(providerID)
+	if err != nil {
+		return nil, provider.ProviderConfig{}, "", "", err
+	}
+	cfg := ps.ConfigFor(providerID)
+	model, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityImage, reqModel)
+	if err != nil {
+		return nil, provider.ProviderConfig{}, "", "", fmt.Errorf("service: %w", err)
+	}
+	return prov, cfg, providerID, model, nil
 }
 
 // resolveStrategy derives the direction strategy from the motion when a
@@ -498,8 +613,12 @@ func (s *Service) ConfirmGeneration(ctx context.Context, planID string, accept b
 	// reuses the cached result without a new external call. Base-character
 	// generation is intentionally excluded: every confirmed submission is a new
 	// candidate, even when its model, prompt, and style are identical.
+	// Explicit regenerations (ForceRegenerate, e.g. 九宫格右键"带反馈重新生成")
+	// are excluded for the same reason: the user asked for a FRESH generation,
+	// so an identical plan fingerprint (same motion/direction/feedback) must
+	// still hit the provider instead of replaying the cached pixels.
 	fp := planFingerprint(plan)
-	if plan.Kind != PlanKindBaseCharacter {
+	if plan.Kind != PlanKindBaseCharacter && !plan.ForceRegenerate {
 		if cached, hit, err := s.queueStore.CacheGet(fp); err == nil && hit && fp != "" {
 			var cachedRes GenerationResult
 			if json.Unmarshal([]byte(cached), &cachedRes) == nil {
@@ -764,7 +883,7 @@ func (s *Service) RegenerateCandidate(ctx context.Context, planID string) (pipel
 		return pipeline.ProcessResult{}, 0, err
 	}
 
-	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
+	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs, prev.Direction)
 	if err != nil {
 		return pipeline.ProcessResult{}, attempts, err
 	}
@@ -793,22 +912,62 @@ func (s *Service) RegenerateCandidate(ctx context.Context, planID string) (pipel
 // generateDirectionResult runs the provider call + filmstrip pipeline for one
 // direction: provider 原始字节 → 解码 → ProcessFilmstrip → 候选落盘 →
 // CandidateSet 保留, returning the direction result carrying the candidate id.
+//
+// 帧序列管线失败（最常见：模型返回的图像不符合条带布局契约 —— 全幅不透明/
+// 帧数错位）与传输错误一样消耗生成确认约定的尝试预算：在
+// plan.MaxAttemptsPerDirection 次总尝试内换一张重试，预算耗尽才失败并保留
+// 最后一个失败候选（保留最佳候选而非空手返回）。重试期间的中间失败不落盘，
+// 避免候选历史被无意义的中间产物刷屏。
 func (s *Service) generateDirectionResult(ctx context.Context, prov provider.Provider, cfg provider.ProviderConfig, plan *GenerationPlan, refs []provider.ReferenceImage, dir string) (DirectionResult, error) {
-	raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs)
-	if err != nil {
-		return DirectionResult{Direction: dir, Attempts: attempts}, err
+	budget := plan.MaxAttemptsPerDirection
+	if budget <= 0 {
+		budget = 1
 	}
-	cand, err := s.processFilmstrip(plan, raw, dir)
-	if err != nil {
-		return DirectionResult{Direction: dir, Attempts: attempts, Bytes: len(raw), CandidateID: cand.ID, Model: plan.Model}, err
+	total := 0
+	for {
+		raw, attempts, err := s.callProviderOnce(ctx, prov, cfg, plan, refs, dir)
+		total += attempts
+		if err != nil {
+			// 传输/配置错误：CallWithRetry 已在单次调用内用掉重试预算，直接失败。
+			return DirectionResult{Direction: dir, Attempts: total}, err
+		}
+		cand, perr := s.runFilmstripPipeline(plan, raw, dir)
+		if perr == nil {
+			if err := s.persistAndRetain(plan, cand); err != nil {
+				// 成功路径落盘失败必须让任务失败，否则会出现"看似成功却无候选文件"的假成功。
+				return DirectionResult{Direction: dir, Attempts: total, Bytes: len(raw), Model: plan.Model},
+					fmt.Errorf("service: persist candidate: %w", err)
+			}
+			return DirectionResult{Direction: dir, Attempts: total, Bytes: len(raw), CandidateID: cand.ID, Model: plan.Model}, nil
+		}
+		if total >= budget {
+			// 预算耗尽：保留最后一个失败候选（保留最佳候选而非空手返回），落盘尽力而为。
+			_ = s.persistAndRetain(plan, cand)
+			return DirectionResult{Direction: dir, Attempts: total, Bytes: len(raw), CandidateID: cand.ID, Model: plan.Model},
+				fmt.Errorf("service: filmstrip pipeline: %v", perr)
+		}
+		s.log.Warn("filmstrip pipeline failed; retrying within the agreed attempt budget",
+			"direction", dir, "attemptsUsed", total, "attemptBudget", budget, "error", perr)
 	}
-	return DirectionResult{Direction: dir, Attempts: attempts, Bytes: len(raw), CandidateID: cand.ID, Model: plan.Model}, nil
+}
+
+// stripImageSize picks the generation canvas for a filmstrip (对齐 perfectpixel
+// 的 AspectForFrames + agnesSizeFor：≤3 帧 16:9、更多 21:9，长边 2048，短边按
+// 比例取整)。返回 (宽, 高)。
+func stripImageSize(frames int) (int, int) {
+	const longSide = 2048
+	if frames > 3 {
+		return longSide, longSide * 9 / 21
+	}
+	return longSide, longSide * 9 / 16
 }
 
 // callProviderOnce runs ONE provider call under the plan's retry policy (每方向
 // 最多 3 次总尝试) and records call statistics. Returns the raw image bytes and
-// the attempt count.
-func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, cfg provider.ProviderConfig, plan *GenerationPlan, refs []provider.ReferenceImage) ([]byte, int, error) {
+// the attempt count. dir selects the per-direction facing lock appended to the
+// immutable plan prompt (对齐 perfectpixel 的 FacingPromptSection —— 方向是
+// 每次调用的变量，条带必须按该视角绘制；基础角色等无方向计划传空)。
+func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, cfg provider.ProviderConfig, plan *GenerationPlan, refs []provider.ReferenceImage, dir string) ([]byte, int, error) {
 	// Pre-flight capability gate (task 1.4): every retry attempt runs through
 	// here, so an image request is only issued when the adapter's capability
 	// declaration supports images AND the plan's model belongs to the
@@ -816,11 +975,23 @@ func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, 
 	if _, err := provider.ResolveValidatedModel(prov.Capabilities(), cfg, provider.ModalityImage, plan.Model); err != nil {
 		return nil, 0, provider.MarkNotRetryable(fmt.Errorf("service: pre-flight capability check failed for %s/%s: %w", plan.ProviderID, plan.Model, err))
 	}
+	// 帧序列计划按条带长宽比请求画布（对齐 perfectpixel：AspectForFrames 的
+	// 16:9 / 21:9 + 长边 2048）——方形画布装不下横向条带，模型只能画满全幅；
+	// 宽幅画布给模型足够的横向空间画 N 个分离姿势。基础角色单图保持
+	// 1024×1024（已验收链路不动）。
+	reqW, reqH := provider.DefaultGenerationSize, provider.DefaultGenerationSize
+	if plan.Kind != PlanKindBaseCharacter && plan.FrameCount > 1 && plan.Canvas.UnitWidth > 0 && plan.Canvas.UnitHeight > 0 {
+		reqW, reqH = stripImageSize(plan.FrameCount)
+	}
+	prompt := plan.Prompt.Prompt
+	if sec := pipeline.FacingSection(dir); sec != "" {
+		prompt = prompt + "\n" + sec
+	}
 	req := provider.ImageRequest{
-		Prompt:     plan.Prompt.Prompt,
+		Prompt:     prompt,
 		Model:      plan.Model,
-		Width:      provider.DefaultGenerationSize,
-		Height:     provider.DefaultGenerationSize,
+		Width:      reqW,
+		Height:     reqH,
 		References: refs,
 	}
 	policy := provider.PolicyFromConfig(cfg)
@@ -848,16 +1019,15 @@ func (s *Service) callProviderOnce(ctx context.Context, prov provider.Provider, 
 	return result.Data, attempts, nil
 }
 
-// processFilmstrip decodes the provider's raw bytes into the filmstrip, runs
-// the deterministic pipeline, persists the candidate into the package's
-// candidate area and retains it in the package's CandidateSet (filmstrip 管线
-// 正式接入生成执行链). The candidate carries the direction it was generated for.
-// On pipeline failure the FAILED candidate is still persisted and retained
-// (保留最佳候选而非空手返回) and the error is returned.
-func (s *Service) processFilmstrip(plan *GenerationPlan, raw []byte, dir string) (pipeline.Candidate, error) {
+// runFilmstripPipeline decodes the provider's raw bytes and runs the
+// deterministic filmstrip pipeline WITHOUT persistence (候选落盘由调用方依据
+// 尝试预算决定 —— 重试期间的中间失败不落盘). The returned candidate carries the
+// direction it was generated for; on failure it is the FAILED candidate
+// (原始图与 prompt 快照保留在内), with the raw pipeline error unwrapped.
+func (s *Service) runFilmstripPipeline(plan *GenerationPlan, raw []byte, dir string) (pipeline.Candidate, error) {
 	strip, err := pipeline.DecodeFilmstrip(raw)
 	if err != nil {
-		return pipeline.Candidate{}, fmt.Errorf("service: decode filmstrip: %w", err)
+		return pipeline.Candidate{}, err
 	}
 	layout, err := pipeline.NormalizeFrameList(plan.Canvas, plan.FrameCount)
 	if err != nil {
@@ -866,19 +1036,19 @@ func (s *Service) processFilmstrip(plan *GenerationPlan, raw []byte, dir string)
 	res, err := pipeline.ProcessFilmstrip(strip, plan.Prompt, layout, s.processOptions(plan))
 	res.Candidate.Direction = dir
 	if err != nil {
-		// 失败候选仍尽力保留（保留最佳候选而非空手返回）；保留失败时把原因带出，不吞错。
-		if perr := s.persistCandidate(plan, res.Candidate); perr != nil {
-			return res.Candidate, fmt.Errorf("service: filmstrip pipeline: %v (and candidate persist failed: %v)", err, perr)
-		}
-		s.candidatesFor(plan.PackagePath).Add(res.Candidate)
-		return res.Candidate, fmt.Errorf("service: filmstrip pipeline: %v", err)
+		return res.Candidate, err
 	}
-	if err := s.persistCandidate(plan, res.Candidate); err != nil {
-		// 成功路径落盘失败必须让任务失败，否则会出现"看似成功却无候选文件"的假成功。
-		return pipeline.Candidate{}, fmt.Errorf("service: persist candidate: %w", err)
-	}
-	s.candidatesFor(plan.PackagePath).Add(res.Candidate)
 	return res.Candidate, nil
+}
+
+// persistAndRetain persists the candidate into the package's candidate area
+// and retains it in the package's CandidateSet (候选落盘 + CandidateSet 保留).
+func (s *Service) persistAndRetain(plan *GenerationPlan, c pipeline.Candidate) error {
+	if err := s.persistCandidate(plan, c); err != nil {
+		return err
+	}
+	s.candidatesFor(plan.PackagePath).Add(c)
+	return nil
 }
 
 // processOptions assembles the pipeline options for a plan: the identity-level
@@ -1038,6 +1208,38 @@ func (s *Service) loadOutboundMaterials(plan *GenerationPlan) ([]provider.Refere
 	return refs, nil
 }
 
+// adoptedBaseSpriteOutbound resolves the identity's adopted base character
+// sprite as the canonical outbound reference material (头号外发参考图).
+// Returns nil (no material) when the identity has no adopted base character
+// yet; a readable error when one is adopted but its file is missing — the
+// execute phase would fail on it anyway, so fail fast with context.
+func adoptedBaseSpriteOutbound(pkg *identity.Package) (*OutboundMaterial, error) {
+	var rel string
+	for _, c := range pkg.BaseCharacterCandidates() {
+		if c.Status == identity.BaseCharacterAdopted {
+			rel = c.ImagePath
+			break
+		}
+	}
+	if strings.TrimSpace(rel) == "" {
+		return nil, nil
+	}
+	abs, err := pkg.BaseCharacterImagePath(rel)
+	if err != nil {
+		return nil, fmt.Errorf("service: resolve adopted base sprite: %w", err)
+	}
+	if _, err := os.Stat(abs); err != nil {
+		return nil, fmt.Errorf("service: adopted base sprite %q is missing: %w", abs, err)
+	}
+	return &OutboundMaterial{
+		MaterialID: "base-sprite",
+		Kind:       "base_sprite",
+		Role:       "base_sprite",
+		Name:       "已采纳基础角色",
+		Path:       abs,
+	}, nil
+}
+
 // anchorsFromPkg converts the identity-level anchors into pipeline anchor
 // points (the anchor-correction input for the filmstrip pipeline).
 func anchorsFromPkg(pkg *identity.Package) []pipeline.AnchorPoint {
@@ -1077,6 +1279,15 @@ func (s *Service) failPlan(plan *GenerationPlan, res *GenerationResult, msg stri
 	s.plans.setStatus(plan.ID, PlanFailed)
 	s.log.Error("generation failed", "plan", plan.ID, "error", msg)
 	return res
+}
+
+func containsStr(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func mimeFor(path string) string {

@@ -38,16 +38,45 @@ func TestActionPresets(t *testing.T) {
 	if len(presets) < 4 {
 		t.Fatalf("action presets = %d, want at least 4", len(presets))
 	}
+	seen := map[string]bool{}
 	for _, p := range presets {
 		if p.ID == "" || p.Name == "" || strings.TrimSpace(p.PromptText) == "" {
 			t.Errorf("incomplete action preset: %+v", p)
 		}
+		if p.Category == "" {
+			t.Errorf("action preset %q missing category", p.ID)
+		}
+		if p.Frames <= 0 {
+			t.Errorf("action preset %q missing suggested frames", p.ID)
+		}
+		if seen[p.ID] {
+			t.Errorf("duplicate action preset id %q", p.ID)
+		}
+		seen[p.ID] = true
 	}
 	if _, err := ActionPresetByID("walk"); err != nil {
 		t.Errorf("walk preset missing: %v", err)
 	}
+	if _, err := ActionPresetByID("death"); err != nil {
+		t.Errorf("death preset missing: %v", err)
+	}
+	if _, err := ActionPresetByID("roll"); err != nil {
+		t.Errorf("roll preset missing: %v", err)
+	}
 	if _, err := ActionPresetByID("nope"); err == nil {
 		t.Error("expected error for unknown action preset")
+	}
+	if got := ActionPresetFrames("death"); got <= 0 {
+		t.Errorf("ActionPresetFrames(death) = %d, want > 0", got)
+	}
+	// 循环语义：行走是循环型、死亡是一次性。
+	walk, _ := ActionPresetByID("walk")
+	if !walk.Loop {
+		t.Error("walk preset should be a looping motion")
+	}
+	death, _ := ActionPresetByID("death")
+	if death.Loop {
+		t.Error("death preset should be a one-shot motion")
 	}
 }
 
@@ -93,6 +122,24 @@ func TestPixelContractsByStyle(t *testing.T) {
 	}
 }
 
+// TestBuildPromptMagentaKeyingContract verifies the filmstrip prompt mandates
+// the magenta keying background (对齐 perfectpixel：图像模型产不出透明背景，
+// 管线靠抠洋红分离姿势) and never asks for transparency on the strip.
+func TestBuildPromptMagentaKeyingContract(t *testing.T) {
+	style, _ := StylePresetByID("pixel")
+	action, _ := ActionPresetByID("walk")
+	s, err := BuildPrompt(PromptInput{Description: "hero", StylePreset: style, ActionPreset: action, CanvasWidth: 256, CanvasHeight: 256, FrameCount: 4, Directions: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(s.Prompt, "#FF00FF") || !strings.Contains(s.Prompt, "BACKGROUND COLOR MANDATE") {
+		t.Errorf("filmstrip prompt misses the magenta keying mandate: %s", s.Prompt)
+	}
+	if strings.Contains(s.Prompt, "transparent background") {
+		t.Errorf("filmstrip prompt still asks for a transparent background (models cannot produce alpha): %s", s.Prompt)
+	}
+}
+
 // TestBuildPromptDeterministic verifies the prompt is deterministic for the
 // same inputs (two builds produce identical prompt text).
 func TestBuildPromptDeterministic(t *testing.T) {
@@ -122,7 +169,7 @@ func TestBuildPromptDeterministic(t *testing.T) {
 	if s1.Prompt != s2.Prompt {
 		t.Errorf("prompt not deterministic:\n%s\n---\n%s", s1.Prompt, s2.Prompt)
 	}
-	if !strings.Contains(s1.Prompt, "4 frames") || !strings.Contains(s1.Prompt, "32x32") {
+	if !strings.Contains(s1.Prompt, "exactly 4 poses") || !strings.Contains(s1.Prompt, "32x32") {
 		t.Errorf("prompt misses canvas/frame details: %s", s1.Prompt)
 	}
 	if !strings.Contains(s1.Prompt, "main reference '正面'") {
@@ -172,5 +219,48 @@ func TestBuildPromptValidation(t *testing.T) {
 		if _, err := BuildPrompt(in); err == nil {
 			t.Errorf("%s: expected error", tc.name)
 		}
+	}
+}
+
+// TestBuildPromptSubjectLock verifies the perfectpixel-aligned identity lock:
+// a base_sprite reference injects the Subject lock section, is listed as the
+// canonical reference, and duplicate base sprites violate the role bounds.
+func TestBuildPromptSubjectLock(t *testing.T) {
+	style, err := StylePresetByID("pixel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := PromptInput{
+		Description:  "hero",
+		StylePreset:  style,
+		ActionPreset: ActionIdle,
+		CanvasWidth:  256, CanvasHeight: 256, FrameCount: 4, Directions: 1,
+	}
+	// 无 base_sprite：提示词不得包含 Subject lock。
+	plain, err := BuildPrompt(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain.Prompt, "Subject lock") {
+		t.Errorf("prompt contains Subject lock without a base sprite: %s", plain.Prompt)
+	}
+	// 有 base_sprite：Subject lock 段落 + canonical 列表。
+	in.References = []ReferenceImageRef{
+		{MaterialID: "base-1", Role: "base_sprite", Name: "已采纳基础角色"},
+		{MaterialID: "m1", Role: "main_reference", Name: "main"},
+	}
+	locked, err := BuildPrompt(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(locked.Prompt, "Subject lock (top priority)") ||
+		!strings.Contains(locked.Prompt, "Palette is binding") ||
+		!strings.Contains(locked.Prompt, "canonical base sprite reference") {
+		t.Errorf("prompt misses the identity subject lock: %s", locked.Prompt)
+	}
+	// 两个 base_sprite：违反角色边界。
+	in.References = append(in.References, ReferenceImageRef{MaterialID: "base-2", Role: "base_sprite"})
+	if _, err := BuildPrompt(in); err == nil {
+		t.Error("duplicate base_sprite references: expected error")
 	}
 }

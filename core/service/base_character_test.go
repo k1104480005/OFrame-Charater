@@ -188,9 +188,16 @@ func TestBaseCharacterExecutesAndRecordsCandidate(t *testing.T) {
 // artifact is normalized to the identity's logical canvas size so candidates
 // never drift from the canvas contract.
 func TestBaseCharacterReencodesJPEGToPNG(t *testing.T) {
+	// 夹具遵循洋红键控契约：满幅洋红技术底 + 中央角色块（JPEG 有损压缩后的
+	// 洋红仍在键控容差内）。
 	src := image.NewRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {
+			src.SetRGBA(x, y, color.RGBA{R: 255, G: 0, B: 255, A: 255})
+		}
+	}
+	for y := 3; y < 13; y++ {
+		for x := 3; x < 13; x++ {
 			src.SetRGBA(x, y, color.RGBA{R: 200, G: 80, B: 40, A: 255})
 		}
 	}

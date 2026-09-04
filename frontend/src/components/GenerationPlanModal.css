@@ -1,0 +1,52 @@
+/* 生成确认弹窗：紧凑方案卡，提示词快照限高可滚动 */
+.gen-plan-modal {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gen-plan-modal__title {
+  font-size: 15px;
+  letter-spacing: 0.06em;
+}
+
+.gen-plan-modal__list {
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.gen-plan-modal__prompt {
+  overflow-wrap: anywhere;
+}
+
+.gen-plan-modal__prompt-text {
+  margin-top: 2px;
+  padding: 6px 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--bg-inset);
+  border: var(--border-w-input) solid var(--border-faint);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.gen-plan-modal__actions {
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  flex: none;
+}
+
+.gen-plan-modal__hint {
+  margin-top: var(--space-1);
+  font-size: 11px;
+  text-align: right;
+}

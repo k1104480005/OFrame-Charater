@@ -54,14 +54,12 @@ func AssembleFilmstrip(frames []*image.RGBA, layout FrameList) (*image.RGBA, err
 	return out, nil
 }
 
-// DecodeFilmstrip decodes a raw filmstrip image from PNG bytes (the original
-// artifact returned by a provider call).
+// DecodeFilmstrip decodes a raw filmstrip image from bytes (the original
+// artifact returned by a provider call). Providers return different formats
+// (Doubao/Seedream return JPEG, agnes PNG) — decode any supported format
+// (PNG/JPEG/GIF) instead of assuming PNG.
 func DecodeFilmstrip(data []byte) (*image.RGBA, error) {
-	img, err := png.Decode(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("pipeline: decode filmstrip: %w", err)
-	}
-	return ToRGBA(img), nil
+	return DecodeImageAny(data)
 }
 
 // EncodeFilmstripPNG encodes a filmstrip as PNG bytes for preservation

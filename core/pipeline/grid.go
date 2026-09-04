@@ -22,9 +22,10 @@ type GridOptions struct {
 
 // FitToCanvas fits src onto a tw×th canvas using integer-pixel rules only:
 // exact match → copy; integer-factor nearest-neighbor scaling when one size is
-// an exact integer multiple of the other; otherwise integer-centered
-// placement with transparent padding/cropping. Never interpolates
-// (task 5.3: 无二次插值模糊).
+// an exact integer multiple of the other; oversized non-divisible slices are
+// proportionally downscaled with nearest-neighbor sampling (never cropped);
+// otherwise integer-centered placement with transparent padding/cropping.
+// Never interpolates (task 5.3: 无二次插值模糊).
 func FitToCanvas(src *image.RGBA, tw, th int) (*image.RGBA, error) {
 	if tw <= 0 || th <= 0 {
 		return nil, fmt.Errorf("pipeline: invalid target canvas %dx%d", tw, th)
@@ -43,6 +44,35 @@ func FitToCanvas(src *image.RGBA, tw, th int) (*image.RGBA, error) {
 	}
 	if tw%sw == 0 && th%sh == 0 {
 		return ScaleNearest(src, tw, th), nil
+	}
+	// 过大的非整数倍切片（模型返回画布大于规格，姿势按内容实际尺寸绘制）：
+	// 先裁掉透明边得到内容真实尺寸，再按比例最近邻缩小到恰好装下，余量透明
+	// 居中 —— 保持像素块美学，绝不裁掉角色任何部分；只缩不放（对齐
+	// perfectpixel：小于画格的姿势保持原尺寸，由透明边距填充）。
+	if sw > tw || sh > th {
+		if x0, y0, x1, y1, ok := ContentBounds(src); ok {
+			src = CropRGBA(src, x0, y0, x1, y1)
+			sw, sh = src.Bounds().Dx(), src.Bounds().Dy()
+		}
+		scale := float64(tw) / float64(sw)
+		if v := float64(th) / float64(sh); v < scale {
+			scale = v
+		}
+		if scale > 1 {
+			scale = 1
+		}
+		if sw == tw && sh == th {
+			return CenterPlace(src, tw, th), nil
+		}
+		nw := int(float64(sw)*scale + 0.5)
+		nh := int(float64(sh)*scale + 0.5)
+		if nw < 1 {
+			nw = 1
+		}
+		if nh < 1 {
+			nh = 1
+		}
+		return CenterPlace(ScaleNearest(src, nw, nh), tw, th), nil
 	}
 	return CenterPlace(src, tw, th), nil
 }

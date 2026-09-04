@@ -256,7 +256,11 @@ export namespace main {
 	export class ActionPresetView {
 	    id: string;
 	    name: string;
+	    category: string;
 	    description: string;
+	    frames: number;
+	    loop: boolean;
+	    promptText: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ActionPresetView(source);
@@ -266,7 +270,11 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.category = source["category"];
 	        this.description = source["description"];
+	        this.frames = source["frames"];
+	        this.loop = source["loop"];
+	        this.promptText = source["promptText"];
 	    }
 	}
 	export class AnchorPointView {
@@ -769,6 +777,7 @@ export namespace main {
 	    canvasHeight: number;
 	    frameCount: number;
 	    directions: number;
+	    feedback?: string;
 	    prompt: string;
 	    builtAt: string;
 	
@@ -786,6 +795,7 @@ export namespace main {
 	        this.canvasHeight = source["canvasHeight"];
 	        this.frameCount = source["frameCount"];
 	        this.directions = source["directions"];
+	        this.feedback = source["feedback"];
 	        this.prompt = source["prompt"];
 	        this.builtAt = source["builtAt"];
 	    }
@@ -896,10 +906,13 @@ export namespace main {
 	    styleCustom?: string;
 	    description?: string;
 	    actionPresetId: string;
+	    feedback?: string;
 	    frameCount: number;
 	    maxAttemptsPerDirection: number;
 	    replaceDirections?: string[];
 	    regenerateOf?: string;
+	    generateDirections?: string[];
+	    forceRegenerate?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new GenerationRequestView(source);
@@ -918,10 +931,13 @@ export namespace main {
 	        this.styleCustom = source["styleCustom"];
 	        this.description = source["description"];
 	        this.actionPresetId = source["actionPresetId"];
+	        this.feedback = source["feedback"];
 	        this.frameCount = source["frameCount"];
 	        this.maxAttemptsPerDirection = source["maxAttemptsPerDirection"];
 	        this.replaceDirections = source["replaceDirections"];
 	        this.regenerateOf = source["regenerateOf"];
+	        this.generateDirections = source["generateDirections"];
+	        this.forceRegenerate = source["forceRegenerate"];
 	    }
 	}
 	export class GenerationResultView {
@@ -1109,6 +1125,104 @@ export namespace main {
 	    }
 	}
 	
+	export class MotionBatchCostView {
+	    currency: string;
+	    amount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MotionBatchCostView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currency = source["currency"];
+	        this.amount = source["amount"];
+	    }
+	}
+	export class MotionBatchItemView {
+	    motionId: string;
+	    motionName: string;
+	    basicDirs: string[];
+	    mirrorDirs: string[];
+	    stuckDirs?: string[];
+	    calls: number;
+	    currency: string;
+	    costPerCall: number;
+	    expectedCost: number;
+	    providerId?: string;
+	    model?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MotionBatchItemView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.motionId = source["motionId"];
+	        this.motionName = source["motionName"];
+	        this.basicDirs = source["basicDirs"];
+	        this.mirrorDirs = source["mirrorDirs"];
+	        this.stuckDirs = source["stuckDirs"];
+	        this.calls = source["calls"];
+	        this.currency = source["currency"];
+	        this.costPerCall = source["costPerCall"];
+	        this.expectedCost = source["expectedCost"];
+	        this.providerId = source["providerId"];
+	        this.model = source["model"];
+	    }
+	}
+	export class MotionBatchSelectionView {
+	    motionId: string;
+	    directions: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MotionBatchSelectionView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.motionId = source["motionId"];
+	        this.directions = source["directions"];
+	    }
+	}
+	export class MotionBatchSummaryView {
+	    motions: number;
+	    pendingCells: number;
+	    pendingCalls: number;
+	    costs: MotionBatchCostView[];
+	    items: MotionBatchItemView[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MotionBatchSummaryView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.motions = source["motions"];
+	        this.pendingCells = source["pendingCells"];
+	        this.pendingCalls = source["pendingCalls"];
+	        this.costs = this.convertValues(source["costs"], MotionBatchCostView);
+	        this.items = this.convertValues(source["items"], MotionBatchItemView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class StrategyView {
 	    count: number;
 	    mirror: boolean;
@@ -1126,6 +1240,12 @@ export namespace main {
 	export class MotionView {
 	    id: string;
 	    name: string;
+	    actionPresetId: string;
+	    actionDescription: string;
+	    frameCount: number;
+	    providerId: string;
+	    model: string;
+	    loop: boolean;
 	    strategy: StrategyView;
 	    directions: DirectionView[];
 	    createdAt: string;
@@ -1139,6 +1259,12 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.actionPresetId = source["actionPresetId"];
+	        this.actionDescription = source["actionDescription"];
+	        this.frameCount = source["frameCount"];
+	        this.providerId = source["providerId"];
+	        this.model = source["model"];
+	        this.loop = source["loop"];
 	        this.strategy = this.convertValues(source["strategy"], StrategyView);
 	        this.directions = this.convertValues(source["directions"], DirectionView);
 	        this.createdAt = source["createdAt"];
@@ -1274,6 +1400,7 @@ export namespace main {
 	    videoModels?: string[];
 	    textModels?: string[];
 	    baseUrl: string;
+	    apiProtocol?: string;
 	    defaultSize?: string;
 	    maxAttempts: number;
 	    timeoutSec: number;
@@ -1303,6 +1430,7 @@ export namespace main {
 	        this.videoModels = source["videoModels"];
 	        this.textModels = source["textModels"];
 	        this.baseUrl = source["baseUrl"];
+	        this.apiProtocol = source["apiProtocol"];
 	        this.defaultSize = source["defaultSize"];
 	        this.maxAttempts = source["maxAttempts"];
 	        this.timeoutSec = source["timeoutSec"];
